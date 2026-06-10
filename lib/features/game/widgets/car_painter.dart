@@ -411,6 +411,47 @@ class HornIconPainter extends CustomPainter {
   bool shouldRepaint(covariant HornIconPainter old) => old.color != color;
 }
 
+/// An expanding, fading puff of exhaust/tyre smoke. [progress] runs 0 → 1.
+class SmokePainter extends CustomPainter {
+  SmokePainter(this.progress);
+  final double progress;
+
+  static const _puffs = <Offset>[
+    Offset(0.0, 0.05),
+    Offset(-0.26, -0.08),
+    Offset(0.24, -0.12),
+    Offset(-0.12, 0.20),
+    Offset(0.16, 0.18),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final centre = Offset(size.width / 2, size.height / 2);
+    final base = size.shortestSide * 0.16;
+    for (var i = 0; i < _puffs.length; i++) {
+      final delay = i * 0.07;
+      final t = ((progress - delay) / (1 - delay)).clamp(0.0, 1.0);
+      if (t <= 0) continue;
+      final radius = base * (0.4 + t * 1.3);
+      final opacity = (1 - t) * 0.42;
+      final off = centre +
+          Offset(_puffs[i].dx * size.width * 0.45,
+              _puffs[i].dy * size.height * 0.45) +
+          Offset(0, -t * size.height * 0.18); // drift upward
+      canvas.drawCircle(
+        off,
+        radius,
+        Paint()
+          ..color = const Color(0xFFE9ECF0).withOpacity(opacity)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant SmokePainter old) => old.progress != progress;
+}
+
 /// Top-down police officer: cap, face and shoulders, with a tiny badge. Used in
 /// the Police power-up overlay beside the squad car.
 class OfficerPainter extends CustomPainter {

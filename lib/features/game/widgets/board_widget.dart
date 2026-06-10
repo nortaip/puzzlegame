@@ -40,6 +40,11 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
   /// Fading tyre marks left behind.
   final List<_Trail> _trails = [];
   int _trailSeq = 0;
+
+  /// Expanding smoke puffs left by some exits.
+  final List<_Smoke> _smokes = [];
+  int _smokeSeq = 0;
+
   double _cell = 0;
 
   late final AnimationController _bump = AnimationController(
@@ -103,6 +108,7 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
             painter: BoardPainter(gridSize: board.size, theme: game.theme),
           ),
           for (final t in _trails) _buildTrail(t),
+          for (final s in _smokes) _buildSmoke(s),
           for (final car in board.cars) _buildCar(game, car, cell),
           for (final g in _ghosts) _buildGhost(g),
           if (_policeActive) _screenFlash(),
@@ -199,12 +205,20 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
       _flashHorn();
     }
 
+    // Vary the exit: sometimes a drift (fishtail), sometimes a smoke puff,
+    // sometimes a plain clean getaway.
+    final roll = _rng.nextDouble();
+    final drift = roll < 0.34;
+    final smoke = !drift && roll < 0.62;
+    if (smoke) _addSmoke(car);
+
     final ghost = _Ghost(
       car: car,
       color: color,
       cell: _cell,
       boardSize: widget.size,
       highBeam: highBeam,
+      drift: drift,
       driftSign: _rng.nextBool() ? 1 : -1,
     );
     ghost.controller = AnimationController(
@@ -246,8 +260,10 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
           builder: (context, _) {
             final p = g.controller.value;
             final off = g.travel * Curves.easeIn.transform(p);
-            // Rear swings out then settles — a little drift / fishtail.
-            final drift = sin(p * pi * 3) * (1 - p) * 0.20 * g.driftSign;
+            // Rear swings out then settles — only on a drift exit.
+            final drift = g.drift
+                ? sin(p * pi * 3) * (1 - p) * 0.20 * g.driftSign
+                : 0.0;
             return Transform.translate(
               offset: off,
               child: Transform.rotate(
@@ -462,6 +478,41 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
     );
   }
 
+  // ── Smoke puffs ────────────────────────────────────────────────────────────
+  void _addSmoke(Vehicle car) {
+    final cell = _cell;
+    if (cell <= 0) return;
+    final w = (car.isHorizontal ? car.length : 1) * cell;
+    final h = (car.isHorizontal ? 1 : car.length) * cell;
+    final left = (car.isHorizontal ? car.lead : car.line) * cell;
+    final top = (car.isHorizontal ? car.line : car.lead) * cell;
+    final centre = Offset(left + w / 2, top + h / 2);
+    // Puff out of the rear (opposite the facing direction).
+    final rear = centre +
+        _unit(car.facing) * (-(car.isHorizontal ? w : h) * 0.4);
+    final box = cell * 1.7;
+    setState(() => _smokes
+        .add(_Smoke(_smokeSeq++, Rect.fromCenter(center: rear, width: box, height: box))));
+  }
+
+  Widget _buildSmoke(_Smoke smoke) {
+    return Positioned.fromRect(
+      key: ValueKey('smoke_${smoke.id}'),
+      rect: smoke.rect,
+      child: IgnorePointer(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 680),
+          onEnd: () => setState(() => _smokes.removeWhere((s) => s.id == smoke.id)),
+          builder: (context, t, _) => CustomPaint(
+            painter: SmokePainter(t),
+            child: const SizedBox.expand(),
+          ),
+        ),
+      ),
+    );
+  }
+
   Offset _unit(SlideDirection d) {
     switch (d) {
       case SlideDirection.right:
@@ -484,6 +535,7 @@ class _Ghost {
     required this.cell,
     required this.boardSize,
     required this.highBeam,
+    required this.drift,
     required this.driftSign,
   });
 
@@ -492,6 +544,7 @@ class _Ghost {
   final double cell;
   final double boardSize;
   final bool highBeam;
+  final bool drift;
   final int driftSign;
   late final AnimationController controller;
 
@@ -539,4 +592,11 @@ class _Trail {
   final int id;
   final Rect rect;
   final SlideDirection facing;
+}
+
+/// An expanding smoke puff left by some exits.
+class _Smoke {
+  const _Smoke(this.id, this.rect);
+  final int id;
+  final Rect rect;
 }
