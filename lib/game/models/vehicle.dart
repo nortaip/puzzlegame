@@ -1,56 +1,59 @@
 import 'direction.dart';
 
-/// A static description of a vehicle on the board.
+/// A car parked on the grid. In "open the road" mode a car never repositions —
+/// it sits at a fixed location until the player drives it off an open edge — so
+/// its full position ([line] + [lead]) is immutable.
 ///
-/// The board stores the *mutable* coordinate (the column for a horizontal
-/// vehicle, the row for a vertical one) separately in [Board.positions], so a
-/// [Vehicle] instance is immutable and cheap to share between board states.
+/// Coordinates:
+///   • horizontal car → occupies row [line], columns [lead] .. [lead]+[length]-1
+///   • vertical car   → occupies column [line], rows [lead] .. [lead]+[length]-1
 class Vehicle {
   const Vehicle({
     required this.id,
     required this.axis,
     required this.length,
-    required this.fixedLine,
-    this.isTarget = false,
-    this.isLocked = false,
+    required this.line,
+    required this.lead,
     this.skinId = 0,
   });
 
-  /// Stable identifier; index into the board's position list.
+  /// Stable, never-reused identifier (used as an animation key).
   final int id;
 
   final MoveAxis axis;
 
-  /// Number of cells the vehicle occupies (2 = car, 3 = truck).
+  /// Number of cells the car occupies (2 = car, 3 = truck).
   final int length;
 
-  /// For a horizontal vehicle this is its row; for a vertical one, its column.
-  /// It never changes — the vehicle only slides along its [axis].
-  final int fixedLine;
+  /// Fixed cross-axis line: the row for a horizontal car, the column for a
+  /// vertical one.
+  final int line;
 
-  /// The vehicle the player must drive to the exit.
-  final bool isTarget;
+  /// Leading (top/left) cell along the movement axis.
+  final int lead;
 
-  /// Locked vehicles cannot move until freed by the Police power-up.
-  final bool isLocked;
-
-  /// Index into the active skin catalogue (cosmetic only).
+  /// Index into the active palette (cosmetic only).
   final int skinId;
 
   bool get isHorizontal => axis == MoveAxis.horizontal;
 
-  Vehicle copyWith({int? id, bool? isLocked, int? skinId}) => Vehicle(
+  /// Row of the car's i-th body cell.
+  int cellRow(int i) => isHorizontal ? line : lead + i;
+
+  /// Column of the car's i-th body cell.
+  int cellCol(int i) => isHorizontal ? lead + i : line;
+
+  Vehicle copyWith({int? id, int? skinId}) => Vehicle(
         id: id ?? this.id,
         axis: axis,
         length: length,
-        fixedLine: fixedLine,
-        isTarget: isTarget,
-        isLocked: isLocked ?? this.isLocked,
+        line: line,
+        lead: lead,
         skinId: skinId ?? this.skinId,
       );
 
   @override
   String toString() =>
       'Vehicle(id:$id, ${isHorizontal ? "H" : "V"}, len:$length, '
-      'line:$fixedLine${isTarget ? ", TARGET" : ""})';
+      'line:$line, lead:$lead)';
 }

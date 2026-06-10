@@ -1,71 +1,75 @@
-import 'dart:collection';
-
 import '../models/board.dart';
+import '../models/direction.dart';
+import '../models/vehicle.dart';
 
-/// Result of a breadth-first search over board states.
-class SolveResult {
-  const SolveResult({required this.solvable, required this.moves});
-
-  final bool solvable;
-
-  /// Optimal sequence of slides from the start state to a solved state.
-  /// Empty when already solved or unsolvable.
-  final List<VehicleMove> moves;
-
-  int get moveCount => moves.length;
+/// A single suggested exit move: drive car [carId] off toward [direction].
+class ExitMove {
+  const ExitMove(this.carId, this.direction);
+  final int carId;
+  final SlideDirection direction;
 }
 
-/// Breadth-first solver for the parking puzzle.
+/// Solver / verifier for "open the road" mode.
 ///
-/// BFS over the (small) position-encoded state space guarantees the *optimal*
-/// (minimum-move) solution, which we use both to validate generated levels and
-/// to power the Hint power-up. A node cap keeps worst-case time bounded.
+/// Driving a car off the board only ever **frees** cells, so it can never make
+/// another car non-exitable. That means the set of currently-exitable cars only
+/// grows as cars leave — so a simple greedy elimination is *complete*: if any
+/// removable car exists at every step until the board is empty, the level is
+/// solvable; otherwise it is not. No exponential search is required.
 class PuzzleSolver {
-  const PuzzleSolver({this.maxStates = 200000});
+  const PuzzleSolver();
 
-  /// Safety valve so pathological boards can't hang the generator.
-  final int maxStates;
-
-  SolveResult solve(Board start) {
-    if (start.isSolved) {
-      return const SolveResult(solvable: true, moves: <VehicleMove>[]);
+  /// True if every car can be driven off the board.
+  bool canClear(Board start) {
+    var board = start.clone();
+    while (!board.isCleared) {
+      final next = _anyExitable(board);
+      if (next == null) return false; // deadlocked with cars remaining
+      board = board.removeCar(next.id);
     }
+    return true;
+  }
 
-    final visited = HashSet<String>()..add(start.encode());
-    final queue = Queue<_Node>()..add(_Node(start, const []));
-    var explored = 0;
+  bool isSolvable(Board start) => canClear(start);
 
-    while (queue.isNotEmpty) {
-      if (explored++ > maxStates) break;
-      final node = queue.removeFirst();
-      final board = node.board;
+  /// The best next move to surface as a Hint: prefer the car nearest a border
+  /// (the most obvious one), so the hint feels natural.
+  ExitMove? bestNextMove(Board start) {
+    Vehicle? bestCar;
+    SlideDirection? bestDir;
+    var bestDistance = 1 << 30;
 
-      for (final move in board.legalMoves()) {
-        final next = board.clone()..applyMove(move);
-        final key = next.encode();
-        if (!visited.add(key)) continue;
-
-        final path = List<VehicleMove>.of(node.path)..add(move);
-        if (next.isSolved) {
-          return SolveResult(solvable: true, moves: path);
+    for (final car in start.cars) {
+      for (final dir in start.exitDirections(car)) {
+        final distance = _distanceToBorder(start.size, car, dir);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestCar = car;
+          bestDir = dir;
         }
-        queue.add(_Node(next, path));
       }
     }
-    return const SolveResult(solvable: false, moves: <VehicleMove>[]);
+    if (bestCar == null) return null;
+    return ExitMove(bestCar.id, bestDir!);
   }
 
-  /// Convenience: the single best next move, or null if none/solved.
-  VehicleMove? bestNextMove(Board start) {
-    final result = solve(start);
-    return result.moves.isEmpty ? null : result.moves.first;
+  Vehicle? _anyExitable(Board board) {
+    for (final car in board.cars) {
+      if (board.exitDirections(car).isNotEmpty) return car;
+    }
+    return null;
   }
 
-  bool isSolvable(Board start) => solve(start).solvable;
-}
-
-class _Node {
-  const _Node(this.board, this.path);
-  final Board board;
-  final List<VehicleMove> path;
+  int _distanceToBorder(int size, Vehicle car, SlideDirection dir) {
+    switch (dir) {
+      case SlideDirection.left:
+        return car.lead;
+      case SlideDirection.up:
+        return car.lead;
+      case SlideDirection.right:
+        return size - (car.lead + car.length);
+      case SlideDirection.down:
+        return size - (car.lead + car.length);
+    }
+  }
 }

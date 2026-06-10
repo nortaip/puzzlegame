@@ -2,17 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../../game/themes/environment_theme.dart';
 
-/// Paints the board surface: rounded backing, grid lines, and the glowing exit
-/// gap on the right border aligned with the target row.
+/// Paints the parking lot: a rounded asphalt surface, grid lines, and exit
+/// "openings" on all four borders to signal that cars can drive off any side.
 class BoardPainter extends CustomPainter {
-  BoardPainter({
-    required this.gridSize,
-    required this.exitRow,
-    required this.theme,
-  });
+  BoardPainter({required this.gridSize, required this.theme});
 
   final int gridSize;
-  final int exitRow;
   final EnvironmentTheme theme;
 
   @override
@@ -33,40 +28,37 @@ class BoardPainter extends CustomPainter {
       canvas.drawLine(Offset(0, cell * i), Offset(size.width, cell * i), line);
     }
 
-    // Exit glow on the right edge at the target row.
-    final exitRect = Rect.fromLTWH(
-      size.width - 6,
-      exitRow * cell + 6,
-      10,
-      cell - 12,
-    );
-    final glow = Paint()
-      ..color = theme.exitGlow
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(exitRect, const Radius.circular(6)),
-      glow,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(exitRect, const Radius.circular(6)),
-      Paint()..color = theme.exitGlow,
-    );
-
-    // Chevrons pointing out of the exit.
-    final chevron = Paint()
-      ..color = theme.exitGlow.withOpacity(0.8)
-      ..strokeWidth = 2.5
+    // Subtle exit markers (outward chevrons) tucked just inside every border
+    // cell, hinting that cars leave the lot from any edge.
+    final marker = Paint()
+      ..color = theme.exitGlow.withOpacity(0.45)
+      ..strokeWidth = 2.0
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
-    final cy = exitRow * cell + cell / 2;
-    for (var k = 0; k < 2; k++) {
-      final x = size.width - 18 + k * 7.0;
-      canvas.drawLine(Offset(x, cy - 6), Offset(x + 5, cy), chevron);
-      canvas.drawLine(Offset(x + 5, cy), Offset(x, cy + 6), chevron);
+
+    for (var i = 0; i < gridSize; i++) {
+      final c = i * cell + cell / 2;
+      _chevron(canvas, marker, Offset(6, c), Axis.horizontal, -1); // left edge
+      _chevron(canvas, marker, Offset(size.width - 6, c), Axis.horizontal, 1);
+      _chevron(canvas, marker, Offset(c, 6), Axis.vertical, -1); // top edge
+      _chevron(canvas, marker, Offset(c, size.height - 6), Axis.vertical, 1);
+    }
+  }
+
+  void _chevron(Canvas canvas, Paint paint, Offset at, Axis axis, int sign) {
+    const s = 4.0;
+    if (axis == Axis.horizontal) {
+      final tip = at.dx + sign * s;
+      canvas.drawLine(Offset(at.dx - sign * s, at.dy - s), Offset(tip, at.dy), paint);
+      canvas.drawLine(Offset(tip, at.dy), Offset(at.dx - sign * s, at.dy + s), paint);
+    } else {
+      final tip = at.dy + sign * s;
+      canvas.drawLine(Offset(at.dx - s, at.dy - sign * s), Offset(at.dx, tip), paint);
+      canvas.drawLine(Offset(at.dx, tip), Offset(at.dx + s, at.dy - sign * s), paint);
     }
   }
 
   @override
   bool shouldRepaint(covariant BoardPainter old) =>
-      old.gridSize != gridSize || old.exitRow != exitRow || old.theme != theme;
+      old.gridSize != gridSize || old.theme != theme;
 }

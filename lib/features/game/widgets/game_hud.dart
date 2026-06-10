@@ -3,28 +3,30 @@ import 'package:flutter/material.dart';
 import '../../../widgets/coin_display.dart';
 import '../../../widgets/glass_panel.dart';
 
-/// Top-of-screen heads-up display: navigation, level + move counter and the
-/// always-instant restart button.
+/// Top-of-screen heads-up display: navigation, level + remaining-cars counter
+/// and the always-instant restart button.
 class GameHud extends StatelessWidget {
   const GameHud({
     super.key,
     required this.levelNumber,
-    required this.moves,
-    required this.optimalMoves,
+    required this.carsLeft,
+    required this.totalCars,
     required this.onBack,
     required this.onRestart,
     this.isDaily = false,
   });
 
   final int levelNumber;
-  final int moves;
-  final int optimalMoves;
+  final int carsLeft;
+  final int totalCars;
   final VoidCallback onBack;
   final VoidCallback onRestart;
   final bool isDaily;
 
   @override
   Widget build(BuildContext context) {
+    final cleared = totalCars - carsLeft;
+    final progress = totalCars == 0 ? 0.0 : cleared / totalCars;
     return Row(
       children: [
         IconButton.filledTonal(
@@ -36,33 +38,33 @@ class GameHud extends StatelessWidget {
           child: GlassPanel(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             borderRadius: 20,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(isDaily ? 'Daily' : 'Level $levelNumber',
                         style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,
                             fontSize: 16)),
-                    Text('Best: $optimalMoves moves',
-                        style: const TextStyle(
-                            color: Colors.white60, fontSize: 11)),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('$moves',
+                    Text('$carsLeft cars left',
                         style: const TextStyle(
                             color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 22)),
-                    const Text('moves',
-                        style: TextStyle(color: Colors.white60, fontSize: 11)),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16)),
                   ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 6,
+                    backgroundColor: Colors.white24,
+                    valueColor: const AlwaysStoppedAnimation(Colors.white),
+                  ),
                 ),
               ],
             ),

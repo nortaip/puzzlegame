@@ -1,10 +1,12 @@
 # Flow & Park Puzzle 🚗🧩
 
-A hyper-casual, **fully-offline** car-parking unblock puzzle built with Flutter,
-with an optional liquid-sort expansion mode. Levels are **procedurally generated
-and provably solvable**, the UI is glassmorphic and animated at 60 FPS, and the
-whole economy (coins, power-ups, cosmetics) works without a network connection.
-Supabase is used only for optional cloud save, analytics and leaderboards.
+A hyper-casual, **fully-offline** car-parking puzzle built with Flutter, with an
+optional liquid-sort expansion mode. **Open the road for every car:** flick a car
+toward an open edge and it drives off the board — clear all the cars to win.
+Levels are **procedurally generated and provably solvable**, the UI is
+glassmorphic and animated at 60 FPS, and the whole economy (coins, power-ups,
+cosmetics) works without a network connection. Supabase is used only for optional
+cloud save, analytics and leaderboards.
 
 > **Heads-up:** this repository contains the full Dart/Flutter source and tests.
 > The platform folders (`android/`, `ios/`, `web/`) are generated locally with
@@ -14,9 +16,11 @@ Supabase is used only for optional cloud save, analytics and leaderboards.
 
 ## Highlights
 
-- ✅ **Always-solvable generator.** Every level is verified with a BFS solver
-  before it ships to the player — there is no code path that emits an
-  unsolvable or soft-locked board. Proven by `test/level_generator_test.dart`.
+- ✅ **Always-solvable generator.** Levels are built by *reverse construction*
+  (cars are driven *in* from the edges), so driving them back out in reverse
+  order is always a valid solution — there is no code path that emits an
+  unclearable board. Re-verified by a greedy solver and proven by
+  `test/level_generator_test.dart`.
 - ⚡ **Instant restart & level transitions.** Levels are cached and the next one
   is prefetched off the critical path, so there are no loading delays.
 - 📦 **Offline-first.** A local JSON store (shared_preferences) is the source of truth; Supabase sync is best-effort
@@ -57,16 +61,16 @@ testable and fast.
 
 ### How "always solvable" is guaranteed
 
-`LevelGenerator` builds a candidate board (a horizontal target vehicle on the
-exit row, a forced blocker, and random obstacles), then **proves** it with
-`PuzzleSolver` (breadth-first search over the position-encoded state space).
-A candidate is accepted only if the solver finds a solution *and* the optimal
-move count lands inside the level's difficulty band. Because acceptance requires
-a solver-verified solution, an unsolvable board can never escape the loop. The
-difficulty band relaxes if needed, but solvability never does. See
-`lib/game/logic/level_generator.dart`.
+The solved state is an *empty* board. `LevelGenerator` builds a puzzle by driving
+cars **in** from the borders: each new car enters from one edge and parks at some
+depth, and it is only placed if the whole lane it travelled through is currently
+empty. Driving the cars back out in the reverse of their placement order is
+therefore always a valid solution. On top of that, driving a car off only ever
+*frees* cells, so it can never jam another car — which means a simple greedy
+elimination (`PuzzleSolver.canClear`) is a complete solvability check, used here
+as a defensive re-verification. See `lib/game/logic/level_generator.dart`.
 
-The liquid-sort generator uses the same principle: random balanced fill +
+The liquid-sort generator uses a complementary principle: random balanced fill +
 `isSolvable` verification (`lib/liquid/liquid_sort_engine.dart`).
 
 ---
@@ -136,23 +140,29 @@ flutter test
 
 - `test/level_generator_test.dart` — proves the always-solvable guarantee across
   the difficulty curve, plus a 40-level stress sweep.
-- `test/board_test.dart` — board mechanics (occupancy, blocking, win, bounds).
+- `test/board_test.dart` — drive-off mechanics (occupancy, open vs jammed lanes,
+  clearing the board).
 - `test/liquid_sort_test.dart` — liquid-sort generator solvability.
 
 ---
 
 ## Gameplay & progression
 
-| Levels   | Grid | New mechanics            |
+| Levels   | Grid | Density / mechanics      |
 |----------|------|--------------------------|
 | 1–10     | 5×5  | basics                   |
 | 11–50    | 6×6  | trucks (length 3)        |
-| 51–120   | 7×7  | locked cars (Police)     |
-| 121+     | 8×8  | denser packing           |
+| 51–120   | 7×7  | tighter packing          |
+| 121+     | 8×8  | densest jams             |
 
-**Power-ups:** 🚓 Police (remove a blocker) · 🔄 Shuffle (re-randomise, stays
-solvable) · 💡 Hint (optimal next move from the solver). Each is free while you
-have charges, then payable with coins or a rewarded ad.
+**Goal:** clear the road — drive every car off the board. Flick a car toward an
+open edge to send it off; flick it into a jammed lane and it bumps. A clean clear
+with no blocked taps earns three stars.
+
+**Power-ups:** 🚓 Police (remove a stuck car) · 🔄 Shuffle (re-randomise into a
+fresh, still-clearable layout) · 💡 Hint (highlights the most obvious car to send
+off). Each is free while you have charges, then payable with coins or a rewarded
+ad.
 
 ---
 

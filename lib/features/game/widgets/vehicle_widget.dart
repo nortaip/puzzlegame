@@ -2,28 +2,26 @@ import 'package:flutter/material.dart';
 
 import '../../../game/models/vehicle.dart';
 
-/// Pure visual for a single vehicle — a glossy rounded car/truck body with a
-/// windshield, subtle highlight and an optional lock badge. No gesture logic.
+/// Pure visual for a single car — a glossy rounded body with a windshield band
+/// oriented along its travel axis, soft shadow, and a glow when hinted.
 class VehicleWidget extends StatelessWidget {
   const VehicleWidget({
     super.key,
     required this.vehicle,
     required this.color,
-    required this.selected,
     required this.hinted,
   });
 
   final Vehicle vehicle;
   final Color color;
-  final bool selected;
   final bool hinted;
 
   @override
   Widget build(BuildContext context) {
     final horizontal = vehicle.isHorizontal;
     return AnimatedScale(
-      duration: const Duration(milliseconds: 140),
-      scale: selected ? 1.04 : 1.0,
+      duration: const Duration(milliseconds: 160),
+      scale: hinted ? 1.04 : 1.0,
       child: Container(
         margin: const EdgeInsets.all(3),
         decoration: BoxDecoration(
@@ -37,13 +35,10 @@ class VehicleWidget extends StatelessWidget {
             ],
           ),
           borderRadius: BorderRadius.circular(14),
-          border: vehicle.isTarget
-              ? Border.all(color: Colors.white, width: 2.4)
-              : null,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.28),
-              blurRadius: selected ? 16 : 8,
+              blurRadius: 8,
               offset: const Offset(0, 4),
             ),
             if (hinted)
@@ -58,7 +53,8 @@ class VehicleWidget extends StatelessWidget {
           children: [
             // Windshield band oriented along the body.
             Align(
-              alignment: horizontal ? Alignment.centerLeft : Alignment.topCenter,
+              alignment:
+                  horizontal ? Alignment.centerLeft : Alignment.topCenter,
               child: FractionallySizedBox(
                 widthFactor: horizontal ? 0.32 : 0.66,
                 heightFactor: horizontal ? 0.66 : 0.32,
@@ -71,18 +67,21 @@ class VehicleWidget extends StatelessWidget {
                 ),
               ),
             ),
-            if (vehicle.isLocked)
-              const Center(
-                child: Icon(Icons.lock, color: Colors.white, size: 22),
-              ),
-            if (vehicle.isTarget)
-              const Align(
-                alignment: Alignment.centerRight,
-                child: Padding(
-                  padding: EdgeInsets.only(right: 6),
-                  child: Icon(Icons.star_rounded, color: Colors.white, size: 18),
+            // Glossy top highlight.
+            Align(
+              alignment: Alignment.topCenter,
+              child: FractionallySizedBox(
+                widthFactor: 0.9,
+                heightFactor: 0.18,
+                child: Container(
+                  margin: const EdgeInsets.only(top: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
+            ),
           ],
         ),
       ),

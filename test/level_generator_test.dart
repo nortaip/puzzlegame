@@ -6,46 +6,46 @@ void main() {
   final generator = LevelGenerator();
   const solver = PuzzleSolver();
 
-  group('LevelGenerator — always solvable guarantee', () {
-    test('every generated level across the progression is solvable', () {
-      // Sample the difficulty curve: early (5x5), mid (6x6/7x7), late (8x8).
+  group('LevelGenerator — every road can be cleared', () {
+    test('generated levels across the curve are all clearable', () {
       for (final level in [1, 3, 5, 8, 12, 25, 40, 55, 80, 130]) {
         final lvl = generator.generate(level, seed: level * 7919);
         final board = lvl.newBoard();
 
-        expect(board.isSolved, isFalse,
-            reason: 'Level $level must not start already solved');
-
-        final result = solver.solve(board);
-        expect(result.solvable, isTrue,
-            reason: 'Level $level was generated unsolvable');
-        expect(result.moveCount, greaterThan(0),
-            reason: 'Level $level should require at least one move');
+        expect(board.isCleared, isFalse,
+            reason: 'Level $level must start with cars on the board');
+        expect(board.cars.length, greaterThanOrEqualTo(3),
+            reason: 'Level $level should have a few cars');
+        expect(solver.canClear(board), isTrue,
+            reason: 'Level $level produced an unclearable board');
       }
     });
 
-    test('reported optimalMoves matches the solver', () {
+    test('par (optimalMoves) equals the number of cars', () {
       for (final level in [2, 10, 30, 60]) {
         final lvl = generator.generate(level, seed: level * 104729);
-        final result = solver.solve(lvl.newBoard());
-        expect(result.moveCount, equals(lvl.optimalMoves));
+        expect(lvl.optimalMoves, equals(lvl.cars.length));
       }
     });
 
     test('deterministic for a fixed seed', () {
       final a = generator.generate(20, seed: 42);
       final b = generator.generate(20, seed: 42);
-      expect(a.initialPositions, equals(b.initialPositions));
-      expect(a.gridSize, equals(b.gridSize));
-      expect(a.exitRow, equals(b.exitRow));
+      expect(a.cars.length, equals(b.cars.length));
+      for (var i = 0; i < a.cars.length; i++) {
+        expect(a.cars[i].axis, b.cars[i].axis);
+        expect(a.cars[i].line, b.cars[i].line);
+        expect(a.cars[i].lead, b.cars[i].lead);
+        expect(a.cars[i].length, b.cars[i].length);
+      }
     });
 
-    test('stress: 40 random levels are all solvable', () {
+    test('stress: 40 random levels are all clearable', () {
       for (var i = 0; i < 40; i++) {
         final level = 1 + (i % 30);
         final lvl = generator.generate(level, seed: i * 1_000_003);
-        expect(solver.isSolvable(lvl.newBoard()), isTrue,
-            reason: 'Random level (#$i, level $level) was unsolvable');
+        expect(solver.canClear(lvl.newBoard()), isTrue,
+            reason: 'Random level (#$i, level $level) was unclearable');
       }
     });
   });

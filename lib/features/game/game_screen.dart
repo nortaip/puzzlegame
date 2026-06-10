@@ -64,8 +64,8 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                         Expanded(
                           child: GameHud(
                             levelNumber: game.level.number,
-                            moves: game.moveCount,
-                            optimalMoves: game.optimalMoves,
+                            carsLeft: game.carsLeft,
+                            totalCars: game.totalCars,
                             isDaily: widget.isDaily,
                             onBack: () => Navigator.of(context).pop(),
                             onRestart: () => ref

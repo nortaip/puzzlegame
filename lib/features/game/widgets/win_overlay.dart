@@ -72,7 +72,7 @@ class _WinOverlayState extends State<WinOverlay>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Level Complete!',
+                const Text('Road Cleared!',
                     style: TextStyle(
                         color: Colors.white,
                         fontSize: 24,
@@ -100,7 +100,7 @@ class _WinOverlayState extends State<WinOverlay>
                   }),
                 ),
                 const SizedBox(height: 12),
-                Text('Solved in ${widget.moves} moves',
+                Text('${widget.moves} cars cleared',
                     style: const TextStyle(color: Colors.white70)),
                 const SizedBox(height: 12),
                 Row(

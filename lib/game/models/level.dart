@@ -1,39 +1,29 @@
 import 'board.dart';
 import 'vehicle.dart';
 
-/// An immutable, fully-specified, guaranteed-solvable puzzle.
+/// An immutable, fully-specified, guaranteed-clearable puzzle.
 class Level {
   const Level({
     required this.number,
     required this.gridSize,
-    required this.exitRow,
-    required this.vehicles,
-    required this.initialPositions,
-    required this.optimalMoves,
+    required this.cars,
     required this.seed,
     this.themeIndex = 0,
   });
 
   final int number;
   final int gridSize;
-  final int exitRow;
-  final List<Vehicle> vehicles;
-  final List<int> initialPositions;
-
-  /// Minimum number of slides to solve (from the BFS solver). Drives the star
-  /// rating and difficulty banding.
-  final int optimalMoves;
+  final List<Vehicle> cars;
 
   /// Seed used to procedurally generate this level (deterministic / shareable).
   final int seed;
 
   final int themeIndex;
 
+  /// The par for the level: each car must be driven off exactly once, so the
+  /// optimal number of moves equals the number of cars.
+  int get optimalMoves => cars.length;
+
   /// A fresh, playable [Board] for this level.
-  Board newBoard() => Board(
-        size: gridSize,
-        exitRow: exitRow,
-        vehicles: vehicles,
-        positions: List<int>.of(initialPositions),
-      );
+  Board newBoard() => Board(size: gridSize, cars: List<Vehicle>.of(cars));
 }

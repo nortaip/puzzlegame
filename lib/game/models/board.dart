@@ -1,132 +1,79 @@
 import 'direction.dart';
 import 'vehicle.dart';
 
-/// A single legal slide: vehicle [vehicleId] moves [steps] cells along its axis.
-/// Positive steps == right/down, negative == left/up.
-class VehicleMove {
-  const VehicleMove(this.vehicleId, this.steps);
-  final int vehicleId;
-  final int steps;
-}
-
-/// The mutable parking-grid state.
-///
-/// Static vehicle metadata lives in [vehicles]; the only mutable data is
-/// [positions] — the variable coordinate of each vehicle (column if
-/// horizontal, row if vertical). This keeps state-space search cheap: a board
-/// state is fully described by the small [positions] list.
+/// The parking-grid state for "open the road" mode: a set of parked [cars]. The
+/// puzzle is solved when every car has driven off the board ([isCleared]).
 class Board {
-  Board({
-    required this.size,
-    required this.exitRow,
-    required this.vehicles,
-    required this.positions,
-  }) : assert(vehicles.length == positions.length);
+  Board({required this.size, required this.cars});
 
   final int size;
 
-  /// The row aligned with the exit gap on the right border. The target vehicle
-  /// is horizontal on this row and wins by reaching the rightmost columns.
-  final int exitRow;
+  /// The cars still parked on the board. Driving a car off removes it.
+  final List<Vehicle> cars;
 
-  final List<Vehicle> vehicles;
+  Board clone() => Board(size: size, cars: List<Vehicle>.of(cars));
 
-  /// `positions[id]` is the vehicle's leading (top/left) mutable coordinate.
-  final List<int> positions;
+  bool get isCleared => cars.isEmpty;
 
-  int get targetId => vehicles.firstWhere((v) => v.isTarget).id;
+  Vehicle? carById(int id) {
+    for (final c in cars) {
+      if (c.id == id) return c;
+    }
+    return null;
+  }
 
-  Board clone() => Board(
-        size: size,
-        exitRow: exitRow,
-        vehicles: vehicles,
-        positions: List<int>.of(positions),
-      );
-
-  /// Leading coordinate for a vehicle (column if horizontal, row if vertical).
-  int leadOf(int id) => positions[id];
-
-  /// Builds an occupancy grid: each cell holds a vehicle id or -1 when empty.
+  /// Occupancy grid: each cell holds a car id, or -1 when empty.
   List<int> occupancy() {
     final grid = List<int>.filled(size * size, -1);
-    for (final v in vehicles) {
-      final lead = positions[v.id];
-      for (var i = 0; i < v.length; i++) {
-        final r = v.isHorizontal ? v.fixedLine : lead + i;
-        final c = v.isHorizontal ? lead + i : v.fixedLine;
-        grid[r * size + c] = v.id;
+    for (final c in cars) {
+      for (var i = 0; i < c.length; i++) {
+        grid[c.cellRow(i) * size + c.cellCol(i)] = c.id;
       }
     }
     return grid;
   }
 
-  bool get isSolved {
-    final t = vehicles[targetId];
-    return positions[targetId] == size - t.length;
-  }
-
-  /// All legal single-vehicle slides reachable from the current state. Each
-  /// distinct destination cell counts as one move (classic Rush Hour metric).
-  List<VehicleMove> legalMoves() {
+  /// Whether [car] has a clear path to the border in [direction] and can drive
+  /// off that way. The direction must match the car's movement axis.
+  bool canExit(Vehicle car, SlideDirection direction) {
+    if (car.axis != direction.axis) return false;
     final grid = occupancy();
-    final moves = <VehicleMove>[];
-    for (final v in vehicles) {
-      if (v.isLocked) continue;
-      final lead = positions[v.id];
 
-      // Slide toward the negative direction (left / up).
-      for (var step = 1;; step++) {
-        final newLead = lead - step;
-        if (newLead < 0) break;
-        final r = v.isHorizontal ? v.fixedLine : newLead;
-        final c = v.isHorizontal ? newLead : v.fixedLine;
-        if (grid[r * size + c] != -1) break;
-        moves.add(VehicleMove(v.id, -step));
-      }
+    bool free(int r, int c) => grid[r * size + c] == -1;
 
-      // Slide toward the positive direction (right / down).
-      for (var step = 1;; step++) {
-        final newLead = lead + step;
-        final tail = newLead + v.length - 1;
-        if (tail >= size) break;
-        final r = v.isHorizontal ? v.fixedLine : tail;
-        final c = v.isHorizontal ? tail : v.fixedLine;
-        if (grid[r * size + c] != -1) break;
-        moves.add(VehicleMove(v.id, step));
-      }
+    switch (direction) {
+      case SlideDirection.right:
+        for (var c = car.lead + car.length; c < size; c++) {
+          if (!free(car.line, c)) return false;
+        }
+        return true;
+      case SlideDirection.left:
+        for (var c = car.lead - 1; c >= 0; c--) {
+          if (!free(car.line, c)) return false;
+        }
+        return true;
+      case SlideDirection.down:
+        for (var r = car.lead + car.length; r < size; r++) {
+          if (!free(r, car.line)) return false;
+        }
+        return true;
+      case SlideDirection.up:
+        for (var r = car.lead - 1; r >= 0; r--) {
+          if (!free(r, car.line)) return false;
+        }
+        return true;
     }
-    return moves;
   }
 
-  /// How far (signed) a vehicle may slide in [direction] right now. 0 = blocked.
-  int maxSlide(int vehicleId, SlideDirection direction) {
-    final v = vehicles[vehicleId];
-    if (v.isLocked) return 0;
-    if (v.axis != direction.axis) return 0;
-    final grid = occupancy();
-    final lead = positions[vehicleId];
-    final sign = direction.delta;
-    var reachable = 0;
-    for (var step = 1;; step++) {
-      final newLead = lead + sign * step;
-      if (newLead < 0) break;
-      final tail = newLead + v.length - 1;
-      if (tail >= size) break;
-      // The newly entered cell is the leading edge in the travel direction.
-      final probe = sign > 0 ? tail : newLead;
-      final r = v.isHorizontal ? v.fixedLine : probe;
-      final c = v.isHorizontal ? probe : v.fixedLine;
-      if (grid[r * size + c] != -1) break;
-      reachable = step;
-    }
-    return reachable * sign;
+  /// The directions (one or both ends of the car's axis) it can currently exit.
+  List<SlideDirection> exitDirections(Vehicle car) {
+    final dirs = car.isHorizontal
+        ? const [SlideDirection.left, SlideDirection.right]
+        : const [SlideDirection.up, SlideDirection.down];
+    return [for (final d in dirs) if (canExit(car, d)) d];
   }
 
-  /// Applies a slide in place (no validation — callers pre-validate).
-  void applyMove(VehicleMove move) {
-    positions[move.vehicleId] += move.steps;
-  }
-
-  /// Compact, comparable encoding of the mutable state for visited-set hashing.
-  String encode() => positions.join(',');
+  /// A new board with car [id] removed (driven off).
+  Board removeCar(int id) =>
+      Board(size: size, cars: [for (final c in cars) if (c.id != id) c]);
 }
