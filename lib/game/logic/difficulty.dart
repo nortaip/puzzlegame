@@ -24,6 +24,8 @@ class DifficultyConfig {
   final double depthBias;
 
   factory DifficultyConfig.forLevel(int level) {
+    // Grid grows through the early game, reaches 8 after level 100, then keeps
+    // growing by one every 100 levels (9 by 300, 10 by 400, …) up to a sane cap.
     final int gridSize;
     if (level <= 8) {
       gridSize = 5;
@@ -32,7 +34,7 @@ class DifficultyConfig {
     } else if (level <= 100) {
       gridSize = 7;
     } else {
-      gridSize = 8;
+      gridSize = (8 + (level - 101) ~/ 100).clamp(8, 14);
     }
 
     // Car density climbs steadily with the level (capped so the board stays

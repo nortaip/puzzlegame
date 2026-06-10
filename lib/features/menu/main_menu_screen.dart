@@ -8,6 +8,7 @@ import '../../widgets/coin_display.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/gradient_background.dart';
 import '../game/game_screen.dart';
+import '../leaderboard/leaderboard_screen.dart';
 import '../level_select/level_select_screen.dart';
 import '../shop/shop_screen.dart';
 
@@ -83,6 +84,14 @@ class MainMenuScreen extends ConsumerWidget {
                           builder: (_) => GameScreen(level: daily, isDaily: true)),
                     );
                   },
+                ),
+                const SizedBox(height: 14),
+                _MenuButton(
+                  icon: Icons.leaderboard_rounded,
+                  label: 'Leaderboard',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const LeaderboardScreen()),
+                  ),
                 ),
                 const Spacer(flex: 2),
               ],
