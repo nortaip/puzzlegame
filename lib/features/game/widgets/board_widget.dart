@@ -7,6 +7,7 @@ import '../../../game/models/direction.dart';
 import '../../../game/models/vehicle.dart';
 import '../../../services/audio/sound_service.dart';
 import '../../../state/game_controller.dart';
+import '../../../state/player_controller.dart';
 import 'board_painter.dart';
 import 'car_painter.dart';
 import 'trail_painter.dart';
@@ -36,6 +37,10 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
 
   /// Cars currently drifting off the board (already removed from game state).
   final List<_Ghost> _ghosts = [];
+
+  /// Cars hidden from the board while their showoff ghost plays (their removal
+  /// is deferred until the animation ends, so the win screen waits for it).
+  final Set<int> _hiddenCars = {};
 
   /// Fading tyre marks left behind.
   final List<_Trail> _trails = [];
@@ -110,7 +115,8 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
           for (final t in _trails) _buildTrail(t),
           for (final s in _smokes) _buildSmoke(s),
           for (final tree in board.trees) _buildTree(tree, board.size, cell),
-          for (final car in board.cars) _buildCar(game, car, cell),
+          for (final car in board.cars)
+            if (!_hiddenCars.contains(car.id)) _buildCar(game, car, cell),
           for (final g in _ghosts) _buildGhost(g),
           if (_policeActive) _screenFlash(),
           if (_policeActive) _policeOverlay(cell),
@@ -191,6 +197,19 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
       _doBump(car);
       return;
     }
+
+    // Occasionally (every ~5th win) reward a flawless clear with a figure-8
+    // drift on the very last car.
+    final game = ref.read(gameControllerProvider);
+    final profile = ref.read(playerControllerProvider);
+    final isLastCar = (game?.board.cars.length ?? 0) == 1;
+    final perfect = (game?.mistakes ?? 1) == 0;
+    final milestone = (profile.levelsCompleted + 1) % 5 == 0;
+    if (isLastCar && perfect && milestone) {
+      _launchCar(car, showoff: true);
+      return;
+    }
+
     final chained = _isChained(car);
     _launchCar(car, highBeam: chained, chained: chained);
   }
@@ -211,25 +230,37 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
   }
 
   /// Commits a car off the board immediately and animates it away as a ghost.
-  void _launchCar(Vehicle car, {bool highBeam = false, bool chained = false}) {
+  void _launchCar(
+    Vehicle car, {
+    bool highBeam = false,
+    bool chained = false,
+    bool showoff = false,
+  }) {
     final game = ref.read(gameControllerProvider);
     final color =
         game?.theme.vehicleColor(car.skinId) ?? const Color(0xFF3498DB);
 
-    _addTrail(car);
     SoundService.instance.drive();
-    if (chained) {
-      SoundService.instance.honk();
-      Future.delayed(const Duration(milliseconds: 190), SoundService.instance.honk);
-      _flashHorn();
-    }
 
     // Vary the exit: sometimes a drift (fishtail), sometimes a smoke puff,
-    // sometimes a plain clean getaway.
+    // sometimes a plain clean getaway (never for the figure-8 showoff).
     final roll = _rng.nextDouble();
-    final drift = roll < 0.34;
-    final smoke = !drift && roll < 0.62;
-    if (smoke) _addSmoke(car);
+    final drift = !showoff && roll < 0.34;
+    final smoke = !showoff && roll >= 0.34 && roll < 0.62;
+
+    if (showoff) {
+      SoundService.instance.honk();
+      Future.delayed(const Duration(milliseconds: 900), SoundService.instance.honk);
+    } else {
+      _addTrail(car);
+      if (chained) {
+        SoundService.instance.honk();
+        Future.delayed(
+            const Duration(milliseconds: 190), SoundService.instance.honk);
+        _flashHorn();
+      }
+      if (smoke) _addSmoke(car);
+    }
 
     final ghost = _Ghost(
       car: car,
@@ -239,20 +270,34 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
       highBeam: highBeam,
       drift: drift,
       driftSign: _rng.nextBool() ? 1 : -1,
+      showoff: showoff,
     );
     ghost.controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 540),
+      duration: Duration(milliseconds: showoff ? 1700 : 540),
     )..addStatusListener((status) {
         if (status == AnimationStatus.completed) {
+          if (showoff) {
+            // Commit the win only after the figure-8 finishes.
+            _hiddenCars.remove(car.id);
+            ref.read(gameControllerProvider.notifier).exitCar(car.id);
+          }
           if (mounted) setState(() => _ghosts.remove(ghost));
           ghost.controller.dispose();
         }
       });
-    setState(() => _ghosts.add(ghost));
-    ghost.controller.forward();
 
-    ref.read(gameControllerProvider.notifier).exitCar(car.id);
+    if (showoff) {
+      // Keep the car in game state (hidden) until the drift ends.
+      setState(() {
+        _hiddenCars.add(car.id);
+        _ghosts.add(ghost);
+      });
+    } else {
+      setState(() => _ghosts.add(ghost));
+      ref.read(gameControllerProvider.notifier).exitCar(car.id);
+    }
+    ghost.controller.forward();
   }
 
   void _doBump(Vehicle car) {
@@ -278,32 +323,70 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
           animation: g.controller,
           builder: (context, _) {
             final p = g.controller.value;
-            final off = g.travel * Curves.easeIn.transform(p);
-            // Rear swings out then settles — only on a drift exit.
-            final drift = g.drift
-                ? sin(p * pi * 3) * (1 - p) * 0.20 * g.driftSign
-                : 0.0;
-            return Transform.translate(
-              offset: off,
-              child: Transform.rotate(
-                angle: drift,
-                alignment: g.frontAlignment,
-                child: Padding(
-                  padding: const EdgeInsets.all(2),
-                  child: CustomPaint(
-                    painter: CarPainter(
-                      color: g.color,
-                      facing: g.car.facing,
-                      type: g.car.type,
-                      highBeam: g.highBeam,
-                    ),
-                    child: const SizedBox.expand(),
-                  ),
-                ),
-              ),
-            );
+            return g.showoff
+                ? _showoffTransform(g, rect, p)
+                : _normalGhostTransform(g, p);
           },
         ),
+      ),
+    );
+  }
+
+  Widget _ghostCar(_Ghost g) => Padding(
+        padding: const EdgeInsets.all(2),
+        child: CustomPaint(
+          painter: CarPainter(
+            color: g.color,
+            facing: g.car.facing,
+            type: g.car.type,
+            highBeam: g.highBeam,
+          ),
+          child: const SizedBox.expand(),
+        ),
+      );
+
+  Widget _normalGhostTransform(_Ghost g, double p) {
+    final off = g.travel * Curves.easeIn.transform(p);
+    final drift =
+        g.drift ? sin(p * pi * 3) * (1 - p) * 0.20 * g.driftSign : 0.0;
+    return Transform.translate(
+      offset: off,
+      child: Transform.rotate(
+        angle: drift,
+        alignment: g.frontAlignment,
+        child: _ghostCar(g),
+      ),
+    );
+  }
+
+  /// Drives a lazy figure-8 (lemniscate of Gerono) around the board centre,
+  /// rotating to follow the path so the car looks like it's drifting an "8",
+  /// then fades out.
+  Widget _showoffTransform(_Ghost g, Rect rect, double p) {
+    final centre = Offset(g.boardSize / 2, g.boardSize / 2);
+    final amp = g.boardSize * 0.26;
+    const loops = 1.5;
+
+    final drivePhase = p < 0.85 ? (p / 0.85) : 1.0;
+    final tt = drivePhase * 2 * pi * loops;
+    final dir = g.driftSign.toDouble(); // flips the 8's direction
+
+    final lx = amp * sin(tt) * dir;
+    final ly = amp * sin(tt) * cos(tt) * 1.7;
+    final pos = centre + Offset(lx, ly);
+
+    // Tangent angle for rotation.
+    final dx = cos(tt) * dir;
+    final dy = (cos(tt) * cos(tt) - sin(tt) * sin(tt)) * 1.7;
+    final angle = atan2(dy, dx);
+
+    final opacity = p < 0.85 ? 1.0 : (1 - (p - 0.85) / 0.15).clamp(0.0, 1.0);
+
+    return Transform.translate(
+      offset: pos - rect.center,
+      child: Transform.rotate(
+        angle: angle,
+        child: Opacity(opacity: opacity, child: _ghostCar(g)),
       ),
     );
   }
@@ -556,6 +639,7 @@ class _Ghost {
     required this.highBeam,
     required this.drift,
     required this.driftSign,
+    this.showoff = false,
   });
 
   final Vehicle car;
@@ -565,6 +649,9 @@ class _Ghost {
   final bool highBeam;
   final bool drift;
   final int driftSign;
+
+  /// Celebratory figure-8 drift in the centre before vanishing.
+  final bool showoff;
   late final AnimationController controller;
 
   Rect get startRect {
