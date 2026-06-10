@@ -5,16 +5,26 @@ import 'vehicle.dart';
 /// in its own [Vehicle.facing] direction. The puzzle is solved when every car
 /// has driven off the board ([isCleared]).
 class Board {
-  Board({required this.size, required this.cars});
+  Board({required this.size, required this.cars, this.trees = const []});
 
   final int size;
 
   /// The cars still parked on the board. Driving a car off removes it.
   final List<Vehicle> cars;
 
-  Board clone() => Board(size: size, cars: List<Vehicle>.of(cars));
+  /// Static roadside-tree obstacles, as cell indices (`row * size + col`). They
+  /// never move and permanently block any lane that passes through them — used
+  /// to close off some exits and make levels harder. The generator guarantees
+  /// no car's exit lane ever crosses a tree, so the board stays solvable.
+  final List<int> trees;
+
+  Board clone() =>
+      Board(size: size, cars: List<Vehicle>.of(cars), trees: trees);
 
   bool get isCleared => cars.isEmpty;
+
+  /// Marker stored in the occupancy grid for a tree cell.
+  static const int treeCell = -2;
 
   Vehicle? carById(int id) {
     for (final c in cars) {
@@ -23,9 +33,13 @@ class Board {
     return null;
   }
 
-  /// Occupancy grid: each cell holds a car id, or -1 when empty.
+  /// Occupancy grid: each cell holds a car id, [treeCell] for a tree, or -1 when
+  /// empty. Only -1 counts as a clear lane cell.
   List<int> occupancy() {
     final grid = List<int>.filled(size * size, -1);
+    for (final t in trees) {
+      grid[t] = treeCell;
+    }
     for (final c in cars) {
       for (var i = 0; i < c.length; i++) {
         grid[c.cellRow(i) * size + c.cellCol(i)] = c.id;
@@ -66,7 +80,10 @@ class Board {
     }
   }
 
-  /// A new board with car [id] removed (driven off).
-  Board removeCar(int id) =>
-      Board(size: size, cars: [for (final c in cars) if (c.id != id) c]);
+  /// A new board with car [id] removed (driven off). Trees are preserved.
+  Board removeCar(int id) => Board(
+        size: size,
+        cars: [for (final c in cars) if (c.id != id) c],
+        trees: trees,
+      );
 }

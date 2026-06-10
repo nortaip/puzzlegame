@@ -452,6 +452,43 @@ class SmokePainter extends CustomPainter {
   bool shouldRepaint(covariant SmokePainter old) => old.progress != progress;
 }
 
+/// A small top-down roadside tree (a bushy green canopy) used as an obstacle.
+class TreePainter extends CustomPainter {
+  const TreePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = Offset(size.width / 2, size.height / 2);
+    final r = size.shortestSide * 0.34;
+
+    // Ground shadow.
+    canvas.drawCircle(
+      c.translate(0, r * 0.4),
+      r * 0.95,
+      Paint()
+        ..color = Colors.black.withOpacity(0.18)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+    );
+
+    const dark = Color(0xFF2E7D32);
+    const mid = Color(0xFF43A047);
+    const light = Color(0xFF7CB342);
+
+    canvas.drawCircle(c.translate(-r * 0.42, r * 0.12), r * 0.6, Paint()..color = dark);
+    canvas.drawCircle(c.translate(r * 0.42, r * 0.14), r * 0.58, Paint()..color = dark);
+    canvas.drawCircle(c.translate(0, -r * 0.28), r * 0.68, Paint()..color = mid);
+    canvas.drawCircle(c, r * 0.74, Paint()..color = mid);
+    canvas.drawCircle(
+      c.translate(-r * 0.2, -r * 0.22),
+      r * 0.3,
+      Paint()..color = light.withOpacity(0.85),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant TreePainter old) => false;
+}
+
 /// Top-down police officer: cap, face and shoulders, with a tiny badge. Used in
 /// the Police power-up overlay beside the squad car.
 class OfficerPainter extends CustomPainter {

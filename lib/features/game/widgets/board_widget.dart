@@ -109,6 +109,7 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
           ),
           for (final t in _trails) _buildTrail(t),
           for (final s in _smokes) _buildSmoke(s),
+          for (final tree in board.trees) _buildTree(tree, board.size, cell),
           for (final car in board.cars) _buildCar(game, car, cell),
           for (final g in _ghosts) _buildGhost(g),
           if (_policeActive) _screenFlash(),
@@ -162,6 +163,24 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
       width: width,
       height: height,
       child: child,
+    );
+  }
+
+  Widget _buildTree(int cellIndex, int gridSize, double cell) {
+    final r = cellIndex ~/ gridSize;
+    final c = cellIndex % gridSize;
+    return Positioned(
+      key: ValueKey('tree_$cellIndex'),
+      left: c * cell,
+      top: r * cell,
+      width: cell,
+      height: cell,
+      child: const IgnorePointer(
+        child: Padding(
+          padding: EdgeInsets.all(2),
+          child: CustomPaint(painter: TreePainter(), child: SizedBox.expand()),
+        ),
+      ),
     );
   }
 

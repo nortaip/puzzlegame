@@ -11,10 +11,14 @@ class DifficultyConfig {
     required this.vehicleCount,
     required this.typePool,
     required this.depthBias,
+    required this.treeCount,
   });
 
   final int gridSize;
   final int vehicleCount;
+
+  /// Number of static roadside-tree obstacles that close off some exits.
+  final int treeCount;
 
   /// Weighted pool of vehicle types to draw from (repeats bias the odds).
   final List<VehicleType> typePool;
@@ -56,11 +60,17 @@ class DifficultyConfig {
     if (gridSize >= 6 && level >= 18) pool.add(VehicleType.truck);
     if (gridSize >= 7) pool.add(VehicleType.bus); // more big vehicles later
 
+    // Trees start appearing in the mid game and grow slowly, capped so plenty
+    // of exits stay open (never more than ~the grid side length).
+    final treeCount =
+        level < 12 ? 0 : (1 + (level - 12) ~/ 18).clamp(0, gridSize);
+
     return DifficultyConfig(
       gridSize: gridSize,
       vehicleCount: vehicleCount,
       typePool: pool,
       depthBias: (level * 0.012).clamp(0.0, 0.85),
+      treeCount: treeCount,
     );
   }
 }

@@ -8,12 +8,16 @@ class Level {
     required this.gridSize,
     required this.cars,
     required this.seed,
+    this.trees = const [],
     this.themeIndex = 0,
   });
 
   final int number;
   final int gridSize;
   final List<Vehicle> cars;
+
+  /// Static tree-obstacle cells (`row * gridSize + col`).
+  final List<int> trees;
 
   /// Seed used to procedurally generate this level (deterministic / shareable).
   final int seed;
@@ -25,5 +29,6 @@ class Level {
   int get optimalMoves => cars.length;
 
   /// A fresh, playable [Board] for this level.
-  Board newBoard() => Board(size: gridSize, cars: List<Vehicle>.of(cars));
+  Board newBoard() =>
+      Board(size: gridSize, cars: List<Vehicle>.of(cars), trees: trees);
 }

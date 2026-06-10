@@ -160,6 +160,11 @@ flutter test
 | 101–200  | 8×8   | densest jams, most big vehicles           |
 | 201+     | 9×9 … | grid grows by one every 100 levels (→14)  |
 
+From level 12, **roadside trees** are scattered (mostly along the borders) as
+static obstacles that close off some exits. The generator places trees before
+the cars and keeps every car's exit lane tree-free, so harder boards stay 100%
+solvable while leaving plenty of open exits.
+
 **Goal:** clear the road — drive every car off the board. Tap a car to send it
 forward in its arrow direction; tap one whose lane is jammed and it lunges and
 bumps. A clean clear with no blocked taps earns three stars. Each car's arrow is

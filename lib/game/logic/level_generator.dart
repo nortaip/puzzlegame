@@ -52,6 +52,7 @@ class LevelGenerator {
       number: number,
       gridSize: best.size,
       cars: List<Vehicle>.of(best.cars),
+      trees: List<int>.of(best.trees),
       seed: baseSeed,
       themeIndex: number % 5,
     );
@@ -60,6 +61,11 @@ class LevelGenerator {
   Board _build(DifficultyConfig cfg, Random rng) {
     final size = cfg.gridSize;
     final occ = List<int>.filled(size * size, -1);
+
+    // Trees go down first; the lane-clear check below then keeps every car's
+    // exit path tree-free, so the board stays solvable.
+    final trees = _placeTrees(cfg, rng, occ, size);
+
     final cars = <Vehicle>[];
     var nextId = 0;
 
@@ -98,7 +104,37 @@ class LevelGenerator {
       nextId++;
     }
 
-    return Board(size: size, cars: cars);
+    return Board(size: size, cars: cars, trees: trees);
+  }
+
+  /// Places [DifficultyConfig.treeCount] tree obstacles, biased to the border
+  /// (roadside) so they close off some exits while leaving plenty open.
+  List<int> _placeTrees(
+    DifficultyConfig cfg,
+    Random rng,
+    List<int> occ,
+    int size,
+  ) {
+    if (cfg.treeCount <= 0) return const [];
+    final border = <int>[];
+    final interior = <int>[];
+    for (var r = 0; r < size; r++) {
+      for (var c = 0; c < size; c++) {
+        final isBorder = r == 0 || r == size - 1 || c == 0 || c == size - 1;
+        (isBorder ? border : interior).add(r * size + c);
+      }
+    }
+    border.shuffle(rng);
+    interior.shuffle(rng);
+
+    final trees = <int>[];
+    for (final cell in [...border, ...interior]) {
+      if (trees.length >= cfg.treeCount) break;
+      if (occ[cell] != -1) continue;
+      occ[cell] = Board.treeCell;
+      trees.add(cell);
+    }
+    return trees;
   }
 
   /// Picks how deep the car parks. With higher [depthBias] we bias toward the
