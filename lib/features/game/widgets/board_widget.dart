@@ -114,10 +114,12 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
           ),
           for (final t in _trails) _buildTrail(t),
           for (final s in _smokes) _buildSmoke(s),
+          // Drifting cars render *under* the parked cars and trees, so a slide
+          // never draws on top of another vehicle.
+          for (final g in _ghosts) _buildGhost(g),
           for (final tree in board.trees) _buildTree(tree, board.size, cell),
           for (final car in board.cars)
             if (!_hiddenCars.contains(car.id)) _buildCar(game, car, cell),
-          for (final g in _ghosts) _buildGhost(g),
           if (_policeActive) _screenFlash(),
           if (_policeActive) _policeOverlay(cell),
           _hornOverlay(),
@@ -364,7 +366,7 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
         Offset(-facingU.dy, facingU.dx) * g.driftSign.toDouble();
 
     final forward = facingU * (g.travel.distance * Curves.easeInCubic.transform(p));
-    final slide = perp * (g.cell * 1.05 * sin(p * pi)); // tail out, then back
+    final slide = perp * (g.cell * 0.55 * sin(p * pi)); // tail out, then back
     final off = forward + slide;
 
     // Big slip angle up front (~34°) that decays as the car hooks up.
