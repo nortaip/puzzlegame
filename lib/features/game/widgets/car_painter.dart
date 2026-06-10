@@ -16,6 +16,7 @@ class CarPainter extends CustomPainter {
     this.type = VehicleType.car,
     this.police = false,
     this.sirenRedLeft = true,
+    this.hazardOn = false,
   });
 
   final Color color;
@@ -27,6 +28,9 @@ class CarPainter extends CustomPainter {
 
   /// Which side of the siren is currently lit (animated by the caller).
   final bool sirenRedLeft;
+
+  /// When true, all four corner lights glow amber (hazard / blocked blink).
+  final bool hazardOn;
 
   static const Color _glassColor = Color(0xFF2A2E37);
 
@@ -86,7 +90,8 @@ class CarPainter extends CustomPainter {
     canvas.drawRRect(bodyRRect, bodyPaint);
 
     _drawWheels(canvas, l, s, hs);
-    canvas.drawRRect(bodyRRect, bodyPaint); // wheels tuck under the body
+    _drawMirrors(canvas, l, s, hs);
+    canvas.drawRRect(bodyRRect, bodyPaint); // wheels/mirrors tuck under the body
 
     // Type-specific detailing.
     if (police) {
@@ -116,21 +121,51 @@ class CarPainter extends CustomPainter {
   }
 
   void _drawWheels(Canvas canvas, double l, double s, double hs) {
-    final wheelPaint = Paint()..color = const Color(0xFF222228);
-    final wheelW = l * 0.18;
-    final wheelH = s * 0.16;
-    final xs = <double>[-l * 0.30, l * 0.30];
-    if (l / s > 2.2) xs.add(-l * 0.02); // extra axle for long vehicles
+    final wheelPaint = Paint()..color = const Color(0xFF1C1C22);
+    // Axle positions sit near the front and rear of each body type (an extra
+    // rear axle for buses/trucks), so wheels read correctly on long vehicles.
+    final List<double> xs;
+    switch (type) {
+      case VehicleType.car:
+        xs = [l * 0.28, -l * 0.28];
+      case VehicleType.minivan:
+        xs = [l * 0.30, -l * 0.30];
+      case VehicleType.bus:
+        xs = [l * 0.36, -l * 0.30, -l * 0.40];
+      case VehicleType.truck:
+        xs = [l * 0.34, -l * 0.26, -l * 0.40];
+    }
+    final wheelW = l * (type == VehicleType.car ? 0.18 : 0.13);
+    final wheelH = s * 0.18;
     for (final sx in xs) {
       for (final sy in [-hs, hs]) {
         canvas.drawRRect(
           RRect.fromRectAndRadius(
             Rect.fromCenter(center: Offset(sx, sy), width: wheelW, height: wheelH),
-            Radius.circular(wheelH * 0.45),
+            Radius.circular(wheelH * 0.4),
           ),
           wheelPaint,
         );
       }
+    }
+  }
+
+  /// Small wing mirrors near the front, sticking out past the sides (cars and
+  /// minivans only — buses/trucks read better without them at this scale).
+  void _drawMirrors(Canvas canvas, double l, double s, double hs) {
+    if (type == VehicleType.bus || type == VehicleType.truck) return;
+    final paint = Paint()..color = Color.lerp(color, Colors.black, 0.25)!;
+    final mx = l * 0.16;
+    final mw = l * 0.06;
+    final mh = s * 0.16;
+    for (final sy in [-hs - mh * 0.35, hs + mh * 0.35]) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: Offset(mx, sy), width: mw, height: mh),
+          Radius.circular(mh * 0.4),
+        ),
+        paint,
+      );
     }
   }
 
@@ -211,6 +246,25 @@ class CarPainter extends CustomPainter {
   }
 
   void _drawLights(Canvas canvas, double l, double s, double hl, double hs) {
+    if (hazardOn) {
+      // All four corners glow amber (hazard / blocked blink).
+      const amberColor = Color(0xFFFFB300);
+      final glow = Paint()
+        ..color = amberColor.withOpacity(0.85)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+      final amber = Paint()..color = amberColor;
+      for (final sx in [hl - l * 0.05, -hl + l * 0.05]) {
+        for (final sy in [-hs * 0.62, hs * 0.62]) {
+          final r = Rect.fromCenter(
+              center: Offset(sx, sy), width: l * 0.06, height: s * 0.2);
+          canvas.drawRRect(
+              RRect.fromRectAndRadius(r.inflate(2), Radius.circular(s * 0.1)), glow);
+          canvas.drawRRect(
+              RRect.fromRectAndRadius(r, Radius.circular(s * 0.08)), amber);
+        }
+      }
+      return;
+    }
     final head = Paint()..color = const Color(0xFFFFF3C4);
     final tail = Paint()..color = const Color(0xFFE53935);
     for (final sy in [-hs * 0.62, hs * 0.62]) {
@@ -291,5 +345,44 @@ class CarPainter extends CustomPainter {
       old.facing != facing ||
       old.type != type ||
       old.police != police ||
-      old.sirenRedLeft != sirenRedLeft;
+      old.sirenRedLeft != sirenRedLeft ||
+      old.hazardOn != hazardOn;
+}
+
+/// Top-down police officer: cap, face and shoulders, with a tiny badge. Used in
+/// the Police power-up overlay beside the squad car.
+class OfficerPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = Offset(size.width / 2, size.height / 2);
+    final r = size.shortestSide * 0.28;
+
+    // Shadow.
+    canvas.drawCircle(
+      c.translate(0, 2),
+      r * 1.5,
+      Paint()
+        ..color = Colors.black.withOpacity(0.2)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+    );
+    // Shoulders (navy uniform).
+    canvas.drawCircle(c, r * 1.5, Paint()..color = const Color(0xFF1A3A6B));
+    // Head / face.
+    canvas.drawCircle(c, r * 0.95, Paint()..color = const Color(0xFFE8B98C));
+    // Cap covering the top of the head.
+    canvas.drawCircle(
+      c.translate(0, -r * 0.20),
+      r * 0.80,
+      Paint()..color = const Color(0xFF15315C),
+    );
+    // Cap badge.
+    canvas.drawCircle(
+      c.translate(0, -r * 0.52),
+      r * 0.16,
+      Paint()..color = const Color(0xFFFFD54F),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant OfficerPainter oldDelegate) => false;
 }

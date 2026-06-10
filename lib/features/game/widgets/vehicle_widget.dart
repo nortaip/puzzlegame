@@ -11,11 +11,15 @@ class VehicleWidget extends StatefulWidget {
     required this.vehicle,
     required this.color,
     required this.hinted,
+    this.hazardOn = false,
   });
 
   final Vehicle vehicle;
   final Color color;
   final bool hinted;
+
+  /// When true the car flashes its amber hazard lights (it's blocked).
+  final bool hazardOn;
 
   @override
   State<VehicleWidget> createState() => _VehicleWidgetState();
@@ -61,6 +65,7 @@ class _VehicleWidgetState extends State<VehicleWidget>
           color: widget.color,
           facing: widget.vehicle.facing,
           type: widget.vehicle.type,
+          hazardOn: widget.hazardOn,
         ),
         child: const SizedBox.expand(),
       ),

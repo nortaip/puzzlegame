@@ -9,6 +9,7 @@ import '../game/models/board.dart';
 import '../game/models/level.dart';
 import '../game/models/vehicle.dart';
 import '../game/themes/environment_theme.dart';
+import '../services/audio/sound_service.dart';
 import '../services/storage/models/level_progress.dart';
 import 'player_controller.dart';
 import 'providers.dart';
@@ -166,6 +167,8 @@ class GameController extends Notifier<GameState?> {
   void _onWin() {
     final s = state!;
     Haptics.success();
+    SoundService.instance.win();
+    Future.delayed(const Duration(milliseconds: 400), SoundService.instance.coin);
     final player = ref.read(playerControllerProvider.notifier);
     player.grantLevelReward(s.stars);
     player.advanceLevel(s.level.number);

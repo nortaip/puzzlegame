@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../game/models/direction.dart';
 import '../../../game/models/vehicle.dart';
+import '../../../services/audio/sound_service.dart';
 import '../../../state/game_controller.dart';
 import 'board_painter.dart';
 import 'car_painter.dart';
@@ -90,8 +91,30 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
           ),
           for (final t in _trails) _buildTrail(t),
           for (final car in board.cars) _buildCar(game, car, cell),
+          if (_policeActive) _screenFlash(),
           if (_policeActive) _policeOverlay(cell),
         ],
+      ),
+    );
+  }
+
+  /// Pulsing blue/red wash over the board while the police are on scene.
+  Widget _screenFlash() {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: AnimatedBuilder(
+          animation: _siren,
+          builder: (context, _) {
+            final red = _siren.value < 0.5;
+            return DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: (red ? const Color(0xFFFF1744) : const Color(0xFF2979FF))
+                    .withOpacity(0.18),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -118,26 +141,34 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
       }
     }
 
-    Widget child = GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => _drive(car),
-      onPanEnd: (_) => _drive(car),
-      child: VehicleWidget(
-        vehicle: car,
-        color: game.theme.vehicleColor(car.skinId),
-        hinted: game.hintCarId == car.id,
-      ),
-    );
+    Widget inner(bool hazardOn) => GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => _drive(car),
+          onPanEnd: (_) => _drive(car),
+          child: VehicleWidget(
+            vehicle: car,
+            color: game.theme.vehicleColor(car.skinId),
+            hinted: game.hintCarId == car.id,
+            hazardOn: hazardOn,
+          ),
+        );
 
+    final Widget child;
     if (_bumpId == car.id) {
+      // While blocked: lunge forward and blink the amber hazard lights.
       child = AnimatedBuilder(
         animation: _bump,
-        builder: (context, c) {
+        builder: (context, _) {
           final k = sin(_bump.value * pi) * (1 - _bump.value) * 10;
-          return Transform.translate(offset: _bumpDir * k, child: c);
+          final hazardOn = (_bump.value * 8).floor().isOdd;
+          return Transform.translate(
+            offset: _bumpDir * k,
+            child: inner(hazardOn),
+          );
         },
-        child: child,
       );
+    } else {
+      child = inner(false);
     }
 
     final exiting = _exiting.contains(car.id);
@@ -161,6 +192,7 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
     if (_policeBusy || _exiting.contains(car.id)) return;
     final controller = ref.read(gameControllerProvider.notifier);
     if (controller.canDriveOff(car.id)) {
+      SoundService.instance.drive();
       _addTrail(car);
       setState(() => _exiting.add(car.id));
     } else {
@@ -176,6 +208,7 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
 
   void _doBump(Vehicle car) {
     ref.read(gameControllerProvider.notifier).registerMistake();
+    SoundService.instance.honk();
     setState(() {
       _bumpId = car.id;
       _bumpDir = _unit(car.facing);
@@ -189,6 +222,7 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
   Future<void> _runPolice(List<int> targets) async {
     _policeBusy = true;
     _siren.repeat();
+    SoundService.instance.startSiren();
     setState(() => _policeActive = true);
 
     // Let the police car arrive at the centre.
@@ -201,6 +235,7 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
       final car = game?.board.carById(id);
       if (car == null) continue;
 
+      SoundService.instance.drive();
       _addTrail(car);
       setState(() => _exiting.add(id));
       await Future.delayed(const Duration(milliseconds: 360));
@@ -211,6 +246,7 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
     }
 
     _siren.stop();
+    SoundService.instance.stopSiren();
     if (mounted) setState(() => _policeActive = false);
     controller.clearPoliceTargets();
     _policeBusy = false;
@@ -218,11 +254,13 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
 
   Widget _policeOverlay(double cell) {
     final pSize = cell * 1.35;
+    final boxW = pSize * 1.7;
+    final boxH = pSize * 1.25;
     return Positioned(
-      left: widget.size / 2 - pSize / 2,
-      top: widget.size / 2 - pSize / 2,
-      width: pSize,
-      height: pSize,
+      left: widget.size / 2 - boxW / 2,
+      top: widget.size / 2 - boxH / 2,
+      width: boxW,
+      height: boxH,
       child: IgnorePointer(
         child: TweenAnimationBuilder<double>(
           tween: Tween(begin: 0.0, end: 1.0),
@@ -230,17 +268,37 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
           curve: Curves.easeOutBack,
           builder: (context, t, child) =>
               Transform.scale(scale: 0.5 + 0.5 * t, child: child),
-          child: AnimatedBuilder(
-            animation: _siren,
-            builder: (context, _) => CustomPaint(
-              painter: CarPainter(
-                color: const Color(0xFFF5F5F7),
-                facing: SlideDirection.down,
-                police: true,
-                sirenRedLeft: _siren.value < 0.5,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // Squad car with flashing light bar.
+              Positioned(
+                left: 0,
+                top: (boxH - pSize) / 2,
+                width: pSize,
+                height: pSize,
+                child: AnimatedBuilder(
+                  animation: _siren,
+                  builder: (context, _) => CustomPaint(
+                    painter: CarPainter(
+                      color: const Color(0xFFF5F5F7),
+                      facing: SlideDirection.down,
+                      police: true,
+                      sirenRedLeft: _siren.value < 0.5,
+                    ),
+                    child: const SizedBox.expand(),
+                  ),
+                ),
               ),
-              child: const SizedBox.expand(),
-            ),
+              // The officer directing traffic (top-down).
+              Positioned(
+                right: 0,
+                bottom: 0,
+                width: pSize * 0.62,
+                height: pSize * 0.62,
+                child: CustomPaint(painter: OfficerPainter()),
+              ),
+            ],
           ),
         ),
       ),

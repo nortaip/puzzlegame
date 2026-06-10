@@ -26,7 +26,9 @@ Supabase is used only for optional cloud save, analytics and leaderboards.
 - 📦 **Offline-first.** A local JSON store (shared_preferences) is the source of truth; Supabase sync is best-effort
   and never blocks gameplay.
 - 🎨 **Premium feel.** Five environment themes, glassmorphism HUD, smooth
-  easing, confetti win celebration, haptics.
+  easing, confetti win celebration, haptics and sound effects (honk, drive-off,
+  siren, win, coin). A blocked car blinks its amber hazard lights and honks; the
+  Police power-up flashes the board blue/red with a siren and an officer on scene.
 - 💰 **Ethical monetization.** Rewarded ads only, plus convenience boosts — no
   pay-to-win.
 

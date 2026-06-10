@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/constants/app_constants.dart';
 import '../core/utils/haptics.dart';
+import '../services/audio/sound_service.dart';
 import '../services/storage/models/player_profile.dart';
 import 'providers.dart';
 
@@ -19,6 +20,7 @@ class PlayerController extends Notifier<PlayerProfile> {
     final store = ref.read(localStoreProvider);
     state = await store.loadProfile();
     Haptics.enabled = state.hapticsEnabled;
+    SoundService.instance.enabled = state.soundEnabled;
     // Pull any newer cloud profile, then push local state up.
     final sync = ref.read(syncServiceProvider);
     await sync.pullIfNewer();
@@ -125,6 +127,7 @@ class PlayerController extends Notifier<PlayerProfile> {
 
   Future<void> setSound(bool value) async {
     state.soundEnabled = value;
+    SoundService.instance.enabled = value;
     await _persist();
   }
 
