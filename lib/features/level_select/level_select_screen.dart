@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,25 +10,35 @@ import '../../state/providers.dart';
 import '../../widgets/gradient_background.dart';
 import '../game/game_screen.dart';
 
-/// A scrollable map of levels. Levels up to the player's current progress are
-/// unlocked; each shows the stars earned on it.
+/// A long winding road where each level is a billboard along the way. Locked
+/// levels are dimmed; the view auto-scrolls to the player's current level.
 class LevelSelectScreen extends ConsumerStatefulWidget {
   const LevelSelectScreen({super.key});
 
   static const int _visibleLevels = 120;
+  static const double _rowHeight = 138;
+  static const double _topPad = 90;
+  static const double _bottomPad = 90;
 
   @override
   ConsumerState<LevelSelectScreen> createState() => _LevelSelectScreenState();
 }
 
 class _LevelSelectScreenState extends ConsumerState<LevelSelectScreen> {
-  /// Maps level number → stars earned (0..3).
+  final ScrollController _scroll = ScrollController();
   Map<int, int> _stars = {};
+  bool _jumped = false;
 
   @override
   void initState() {
     super.initState();
     _loadStars();
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
   }
 
   Future<void> _loadStars() async {
@@ -36,6 +48,19 @@ class _LevelSelectScreenState extends ConsumerState<LevelSelectScreen> {
       _stars = {for (final p in progress) p.levelNumber: p.stars};
     });
   }
+
+  double _totalHeight() =>
+      LevelSelectScreen._topPad +
+      LevelSelectScreen._bottomPad +
+      LevelSelectScreen._visibleLevels * LevelSelectScreen._rowHeight;
+
+  double _yCenter(int index) =>
+      _totalHeight() -
+      LevelSelectScreen._bottomPad -
+      (index + 0.5) * LevelSelectScreen._rowHeight;
+
+  double _roadX(double width, double y) =>
+      width / 2 + width * 0.13 * sin(y / 200);
 
   @override
   Widget build(BuildContext context) {
@@ -66,24 +91,46 @@ class _LevelSelectScreenState extends ConsumerState<LevelSelectScreen> {
                 ),
               ),
               Expanded(
-                child: GridView.builder(
-                  padding: const EdgeInsets.all(20),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
-                    mainAxisSpacing: 14,
-                    crossAxisSpacing: 14,
-                    childAspectRatio: 0.82,
-                  ),
-                  itemCount: LevelSelectScreen._visibleLevels,
-                  itemBuilder: (context, index) {
-                    final number = index + 1;
-                    final isUnlocked = number <= unlocked;
-                    return _LevelTile(
-                      number: number,
-                      unlocked: isUnlocked,
-                      stars: _stars[number] ?? 0,
-                      onTap: isUnlocked ? () => _play(number) : null,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = constraints.maxWidth;
+                    final total = _totalHeight();
+
+                    // Auto-scroll to the current level once.
+                    if (!_jumped) {
+                      _jumped = true;
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!_scroll.hasClients) return;
+                        final idx = (unlocked - 1)
+                            .clamp(0, LevelSelectScreen._visibleLevels - 1);
+                        final y = _yCenter(idx);
+                        final target = (y - constraints.maxHeight / 2)
+                            .clamp(0.0, _scroll.position.maxScrollExtent);
+                        _scroll.jumpTo(target);
+                      });
+                    }
+
+                    return SingleChildScrollView(
+                      controller: _scroll,
+                      child: SizedBox(
+                        width: width,
+                        height: total,
+                        child: Stack(
+                          children: [
+                            // The road.
+                            Positioned.fill(
+                              child: CustomPaint(
+                                painter: _RoadPainter(theme: theme),
+                              ),
+                            ),
+                            // Billboards.
+                            for (var i = 0;
+                                i < LevelSelectScreen._visibleLevels;
+                                i++)
+                              ..._billboard(width, i, unlocked, theme),
+                          ],
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -95,51 +142,151 @@ class _LevelSelectScreenState extends ConsumerState<LevelSelectScreen> {
     );
   }
 
+  List<Widget> _billboard(
+    double width,
+    int index,
+    int unlocked,
+    EnvironmentTheme theme,
+  ) {
+    final number = index + 1;
+    final isUnlocked = number <= unlocked;
+    final isCurrent = number == unlocked;
+    final y = _yCenter(index);
+    final rx = _roadX(width, y);
+    final leftSide = index.isEven;
+    const bw = 128.0;
+    const bh = 88.0;
+    final bx = (leftSide ? rx - bw - 18 : rx + 18).clamp(6.0, width - bw - 6);
+
+    return [
+      // Road marker dot connecting the billboard to the road.
+      Positioned(
+        left: rx - 7,
+        top: y - 7,
+        child: Container(
+          width: 14,
+          height: 14,
+          decoration: BoxDecoration(
+            color: isUnlocked ? Colors.white : Colors.white38,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.black26, width: 2),
+          ),
+        ),
+      ),
+      Positioned(
+        left: bx,
+        top: y - bh / 2,
+        width: bw,
+        height: bh,
+        child: _Billboard(
+          number: number,
+          unlocked: isUnlocked,
+          current: isCurrent,
+          stars: _stars[number] ?? 0,
+          theme: theme,
+          onTap: isUnlocked ? () => _play(number) : null,
+        ),
+      ),
+    ];
+  }
+
   Future<void> _play(int number) async {
     final lvl = ref.read(levelLoaderProvider).load(number);
     await Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => GameScreen(level: lvl)));
-    // Refresh stars after returning from a play session.
     await _loadStars();
   }
 }
 
-class _LevelTile extends StatelessWidget {
-  const _LevelTile({
+/// A signboard on a post showing a level number, stars and lock state.
+class _Billboard extends StatelessWidget {
+  const _Billboard({
     required this.number,
     required this.unlocked,
+    required this.current,
     required this.stars,
+    required this.theme,
     this.onTap,
   });
 
   final int number;
   final bool unlocked;
+  final bool current;
   final int stars;
+  final EnvironmentTheme theme;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final base = unlocked ? theme.vehicleColor(number) : const Color(0xFF6B7280);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(unlocked ? 0.22 : 0.07),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color.lerp(base, Colors.white, 0.25)!,
+              base,
+              Color.lerp(base, Colors.black, 0.20)!,
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: current ? Colors.white : Colors.white24,
+            width: current ? 3 : 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Stack(
+          alignment: Alignment.center,
           children: [
-            if (unlocked) ...[
-              Text('$number',
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700)),
-              const SizedBox(height: 4),
-              _StarRow(stars: stars),
-            ] else
-              const Icon(Icons.lock, color: Colors.white38, size: 20),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (unlocked) ...[
+                  const Text('LEVEL',
+                      style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 10,
+                          letterSpacing: 2,
+                          fontWeight: FontWeight.w700)),
+                  Text('$number',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          height: 1.0)),
+                  const SizedBox(height: 2),
+                  _Stars(stars: stars),
+                ] else
+                  const Icon(Icons.lock, color: Colors.white, size: 26),
+              ],
+            ),
+            if (current)
+              Positioned(
+                top: -10,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2ECC71),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text('NOW',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800)),
+                ),
+              ),
           ],
         ),
       ),
@@ -147,10 +294,9 @@ class _LevelTile extends StatelessWidget {
   }
 }
 
-class _StarRow extends StatelessWidget {
-  const _StarRow({required this.stars});
+class _Stars extends StatelessWidget {
+  const _Stars({required this.stars});
   final int stars;
-
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -159,10 +305,62 @@ class _StarRow extends StatelessWidget {
         final earned = i < stars;
         return Icon(
           earned ? Icons.star_rounded : Icons.star_outline_rounded,
-          size: 13,
-          color: earned ? const Color(0xFFFFD54F) : Colors.white30,
+          size: 14,
+          color: earned ? const Color(0xFFFFD54F) : Colors.white38,
         );
       }),
     );
   }
+}
+
+/// Paints the winding road that the billboards line up along.
+class _RoadPainter extends CustomPainter {
+  _RoadPainter({required this.theme});
+  final EnvironmentTheme theme;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final roadWidth = size.width * 0.24;
+    final pts = <Offset>[];
+    for (double y = 0; y <= size.height; y += 6) {
+      pts.add(Offset(size.width / 2 + size.width * 0.13 * sin(y / 200), y));
+    }
+    final path = Path()..moveTo(pts.first.dx, pts.first.dy);
+    for (final p in pts.skip(1)) {
+      path.lineTo(p.dx, p.dy);
+    }
+
+    // Shoulder + asphalt.
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = const Color(0xFF2A2E37)
+        ..strokeWidth = roadWidth + 12
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = const Color(0xFF3C424E)
+        ..strokeWidth = roadWidth
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+
+    // Dashed centre line.
+    final dash = Paint()
+      ..color = const Color(0xFFFFD54F)
+      ..strokeWidth = 4
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    for (var i = 0; i + 4 < pts.length; i += 11) {
+      canvas.drawLine(pts[i], pts[i + 4], dash);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RoadPainter old) => old.theme != theme;
 }
