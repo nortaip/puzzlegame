@@ -12,11 +12,14 @@ import 'car_painter.dart';
 import 'trail_painter.dart';
 import 'vehicle_widget.dart';
 
-/// Renders the parking grid and turns taps/flicks into "drive forward" actions:
-/// tap a car and it drives off in its arrow direction if the lane is clear;
-/// otherwise it lunges, bumps and shakes. The Police power-up sends a police car
-/// to the centre that escorts stuck cars off one by one. The level clears when
-/// every car has left.
+/// Renders the parking grid and turns taps into "drive forward" actions.
+///
+/// A tapped car is removed from the board *immediately* (so a car right behind
+/// it can be tapped and follow without waiting), then animated off as a drifting
+/// "ghost". A follow-up car whose path just cleared launches with high beams and
+/// a double honk, flashing a horn icon in the centre. A blocked car bumps,
+/// blinks its hazard lights and honks. The Police power-up escorts stuck cars
+/// off with a siren, blue/red screen flash and an officer on scene.
 class BoardWidget extends ConsumerStatefulWidget {
   const BoardWidget({super.key, required this.size});
 
@@ -29,8 +32,15 @@ class BoardWidget extends ConsumerStatefulWidget {
 
 class _BoardWidgetState extends ConsumerState<BoardWidget>
     with TickerProviderStateMixin {
-  /// Cars currently playing their ride-off animation.
-  final Set<int> _exiting = {};
+  final Random _rng = Random();
+
+  /// Cars currently drifting off the board (already removed from game state).
+  final List<_Ghost> _ghosts = [];
+
+  /// Fading tyre marks left behind.
+  final List<_Trail> _trails = [];
+  int _trailSeq = 0;
+  double _cell = 0;
 
   late final AnimationController _bump = AnimationController(
     vsync: this,
@@ -39,7 +49,6 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
   int? _bumpId;
   Offset _bumpDir = Offset.zero;
 
-  // Police escort animation.
   late final AnimationController _siren = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 480),
@@ -47,21 +56,25 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
   bool _policeActive = false;
   bool _policeBusy = false;
 
-  /// Fading tyre marks left behind by cars that have driven off.
-  final List<_Trail> _trails = [];
-  int _trailSeq = 0;
-  double _cell = 0;
+  // Centre horn-icon flash (chained / double-honk).
+  late final AnimationController _horn = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 760),
+  );
 
   @override
   void dispose() {
     _bump.dispose();
     _siren.dispose();
+    _horn.dispose();
+    for (final g in _ghosts) {
+      g.controller.dispose();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Kick off the escort when the Police power-up bumps the token.
     ref.listen(gameControllerProvider, (prev, next) {
       if (next == null) return;
       final prevToken = prev?.policeToken ?? 0;
@@ -91,14 +104,201 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
           ),
           for (final t in _trails) _buildTrail(t),
           for (final car in board.cars) _buildCar(game, car, cell),
+          for (final g in _ghosts) _buildGhost(g),
           if (_policeActive) _screenFlash(),
           if (_policeActive) _policeOverlay(cell),
+          _hornOverlay(),
         ],
       ),
     );
   }
 
-  /// Pulsing blue/red wash over the board while the police are on scene.
+  // ── Parked cars ────────────────────────────────────────────────────────────
+  Widget _buildCar(GameState game, Vehicle car, double cell) {
+    final width = (car.isHorizontal ? car.length : 1) * cell;
+    final height = (car.isHorizontal ? 1 : car.length) * cell;
+    final left = (car.isHorizontal ? car.lead : car.line) * cell;
+    final top = (car.isHorizontal ? car.line : car.lead) * cell;
+
+    Widget inner(bool hazardOn) => GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => _drive(car),
+          onPanEnd: (_) => _drive(car),
+          child: VehicleWidget(
+            vehicle: car,
+            color: game.theme.vehicleColor(car.skinId),
+            hinted: game.hintCarId == car.id,
+            hazardOn: hazardOn,
+          ),
+        );
+
+    final Widget child;
+    if (_bumpId == car.id) {
+      child = AnimatedBuilder(
+        animation: _bump,
+        builder: (context, _) {
+          final k = sin(_bump.value * pi) * (1 - _bump.value) * 10;
+          final hazardOn = (_bump.value * 8).floor().isOdd;
+          return Transform.translate(
+            offset: _bumpDir * k,
+            child: inner(hazardOn),
+          );
+        },
+      );
+    } else {
+      child = inner(false);
+    }
+
+    return Positioned(
+      key: ValueKey('car_${car.id}'),
+      left: left,
+      top: top,
+      width: width,
+      height: height,
+      child: child,
+    );
+  }
+
+  void _drive(Vehicle car) {
+    if (_policeBusy) return;
+    final controller = ref.read(gameControllerProvider.notifier);
+    if (!controller.canDriveOff(car.id)) {
+      _doBump(car);
+      return;
+    }
+    final chained = _isChained(car);
+    _launchCar(car, highBeam: chained, chained: chained);
+  }
+
+  /// True when the lane just ahead is occupied by a car that is still driving
+  /// off (a back-to-back follow).
+  bool _isChained(Vehicle car) {
+    for (final g in _ghosts) {
+      final gc = g.car;
+      if (gc.facing != car.facing || gc.line != car.line) continue;
+      final ahead = switch (car.facing) {
+        SlideDirection.right || SlideDirection.down => gc.lead > car.lead,
+        SlideDirection.left || SlideDirection.up => gc.lead < car.lead,
+      };
+      if (ahead) return true;
+    }
+    return false;
+  }
+
+  /// Commits a car off the board immediately and animates it away as a ghost.
+  void _launchCar(Vehicle car, {bool highBeam = false, bool chained = false}) {
+    final game = ref.read(gameControllerProvider);
+    final color =
+        game?.theme.vehicleColor(car.skinId) ?? const Color(0xFF3498DB);
+
+    _addTrail(car);
+    SoundService.instance.drive();
+    if (chained) {
+      SoundService.instance.honk();
+      Future.delayed(const Duration(milliseconds: 190), SoundService.instance.honk);
+      _flashHorn();
+    }
+
+    final ghost = _Ghost(
+      car: car,
+      color: color,
+      cell: _cell,
+      boardSize: widget.size,
+      highBeam: highBeam,
+      driftSign: _rng.nextBool() ? 1 : -1,
+    );
+    ghost.controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 540),
+    )..addStatusListener((status) {
+        if (status == AnimationStatus.completed) {
+          if (mounted) setState(() => _ghosts.remove(ghost));
+          ghost.controller.dispose();
+        }
+      });
+    setState(() => _ghosts.add(ghost));
+    ghost.controller.forward();
+
+    ref.read(gameControllerProvider.notifier).exitCar(car.id);
+  }
+
+  void _doBump(Vehicle car) {
+    ref.read(gameControllerProvider.notifier).registerMistake();
+    SoundService.instance.honk();
+    setState(() {
+      _bumpId = car.id;
+      _bumpDir = _unit(car.facing);
+    });
+    _bump.forward(from: 0).whenComplete(() {
+      if (mounted && _bumpId == car.id) setState(() => _bumpId = null);
+    });
+  }
+
+  // ── Drifting ghosts ──────────────────────────────────────────────────────
+  Widget _buildGhost(_Ghost g) {
+    final rect = g.startRect;
+    return Positioned.fromRect(
+      key: ValueKey('ghost_${g.car.id}_${identityHashCode(g)}'),
+      rect: rect,
+      child: IgnorePointer(
+        child: AnimatedBuilder(
+          animation: g.controller,
+          builder: (context, _) {
+            final p = g.controller.value;
+            final off = g.travel * Curves.easeIn.transform(p);
+            // Rear swings out then settles — a little drift / fishtail.
+            final drift = sin(p * pi * 3) * (1 - p) * 0.20 * g.driftSign;
+            return Transform.translate(
+              offset: off,
+              child: Transform.rotate(
+                angle: drift,
+                alignment: g.frontAlignment,
+                child: Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: CustomPaint(
+                    painter: CarPainter(
+                      color: g.color,
+                      facing: g.car.facing,
+                      type: g.car.type,
+                      highBeam: g.highBeam,
+                    ),
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // ── Police escort ──────────────────────────────────────────────────────────
+  Future<void> _runPolice(List<int> targets) async {
+    _policeBusy = true;
+    _siren.repeat();
+    SoundService.instance.startSiren();
+    setState(() => _policeActive = true);
+
+    await Future.delayed(const Duration(milliseconds: 650));
+
+    for (final id in targets) {
+      if (!mounted) break;
+      final game = ref.read(gameControllerProvider);
+      final car = game?.board.carById(id);
+      if (car == null) continue;
+      _launchCar(car);
+      await Future.delayed(const Duration(milliseconds: 320));
+    }
+
+    await Future.delayed(const Duration(milliseconds: 200));
+    _siren.stop();
+    SoundService.instance.stopSiren();
+    if (mounted) setState(() => _policeActive = false);
+    ref.read(gameControllerProvider.notifier).clearPoliceTargets();
+    _policeBusy = false;
+  }
+
   Widget _screenFlash() {
     return Positioned.fill(
       child: IgnorePointer(
@@ -117,139 +317,6 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
         ),
       ),
     );
-  }
-
-  Widget _buildCar(GameState game, Vehicle car, double cell) {
-    final width = (car.isHorizontal ? car.length : 1) * cell;
-    final height = (car.isHorizontal ? 1 : car.length) * cell;
-
-    final baseLeft = (car.isHorizontal ? car.lead : car.line) * cell;
-    final baseTop = (car.isHorizontal ? car.line : car.lead) * cell;
-
-    var left = baseLeft;
-    var top = baseTop;
-    if (_exiting.contains(car.id)) {
-      switch (car.facing) {
-        case SlideDirection.right:
-          left = widget.size + cell;
-        case SlideDirection.left:
-          left = -width - cell;
-        case SlideDirection.down:
-          top = widget.size + cell;
-        case SlideDirection.up:
-          top = -height - cell;
-      }
-    }
-
-    Widget inner(bool hazardOn) => GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => _drive(car),
-          onPanEnd: (_) => _drive(car),
-          child: VehicleWidget(
-            vehicle: car,
-            color: game.theme.vehicleColor(car.skinId),
-            hinted: game.hintCarId == car.id,
-            hazardOn: hazardOn,
-          ),
-        );
-
-    final Widget child;
-    if (_bumpId == car.id) {
-      // While blocked: lunge forward and blink the amber hazard lights.
-      child = AnimatedBuilder(
-        animation: _bump,
-        builder: (context, _) {
-          final k = sin(_bump.value * pi) * (1 - _bump.value) * 10;
-          final hazardOn = (_bump.value * 8).floor().isOdd;
-          return Transform.translate(
-            offset: _bumpDir * k,
-            child: inner(hazardOn),
-          );
-        },
-      );
-    } else {
-      child = inner(false);
-    }
-
-    final exiting = _exiting.contains(car.id);
-    return AnimatedPositioned(
-      key: ValueKey(car.id),
-      duration: exiting
-          ? const Duration(milliseconds: 360)
-          : const Duration(milliseconds: 150),
-      curve: exiting ? Curves.easeInCubic : Curves.easeOut,
-      left: left,
-      top: top,
-      width: width,
-      height: height,
-      onEnd: exiting ? () => _onExitDone(car.id) : null,
-      child: child,
-    );
-  }
-
-  /// Attempt to drive the tapped car forward (its single arrow direction).
-  void _drive(Vehicle car) {
-    if (_policeBusy || _exiting.contains(car.id)) return;
-    final controller = ref.read(gameControllerProvider.notifier);
-    if (controller.canDriveOff(car.id)) {
-      SoundService.instance.drive();
-      _addTrail(car);
-      setState(() => _exiting.add(car.id));
-    } else {
-      _doBump(car);
-    }
-  }
-
-  void _onExitDone(int carId) {
-    if (!_exiting.contains(carId)) return;
-    setState(() => _exiting.remove(carId));
-    ref.read(gameControllerProvider.notifier).exitCar(carId);
-  }
-
-  void _doBump(Vehicle car) {
-    ref.read(gameControllerProvider.notifier).registerMistake();
-    SoundService.instance.honk();
-    setState(() {
-      _bumpId = car.id;
-      _bumpDir = _unit(car.facing);
-    });
-    _bump.forward(from: 0).whenComplete(() {
-      if (mounted && _bumpId == car.id) setState(() => _bumpId = null);
-    });
-  }
-
-  // ── Police escort ──────────────────────────────────────────────────────────
-  Future<void> _runPolice(List<int> targets) async {
-    _policeBusy = true;
-    _siren.repeat();
-    SoundService.instance.startSiren();
-    setState(() => _policeActive = true);
-
-    // Let the police car arrive at the centre.
-    await Future.delayed(const Duration(milliseconds: 650));
-
-    final controller = ref.read(gameControllerProvider.notifier);
-    for (final id in targets) {
-      if (!mounted) break;
-      final game = ref.read(gameControllerProvider);
-      final car = game?.board.carById(id);
-      if (car == null) continue;
-
-      SoundService.instance.drive();
-      _addTrail(car);
-      setState(() => _exiting.add(id));
-      await Future.delayed(const Duration(milliseconds: 360));
-      if (!mounted) break;
-      _exiting.remove(id);
-      controller.exitCar(id); // idempotent if already gone
-      await Future.delayed(const Duration(milliseconds: 130));
-    }
-
-    _siren.stop();
-    SoundService.instance.stopSiren();
-    if (mounted) setState(() => _policeActive = false);
-    controller.clearPoliceTargets();
-    _policeBusy = false;
   }
 
   Widget _policeOverlay(double cell) {
@@ -271,7 +338,6 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              // Squad car with flashing light bar.
               Positioned(
                 left: 0,
                 top: (boxH - pSize) / 2,
@@ -290,7 +356,6 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
                   ),
                 ),
               ),
-              // The officer directing traffic (top-down).
               Positioned(
                 right: 0,
                 bottom: 0,
@@ -299,6 +364,53 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
                 child: CustomPaint(painter: OfficerPainter()),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Centre horn icon flash ─────────────────────────────────────────────────
+  void _flashHorn() => _horn.forward(from: 0);
+
+  Widget _hornOverlay() {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Center(
+          child: AnimatedBuilder(
+            animation: _horn,
+            builder: (context, _) {
+              final t = _horn.value;
+              if (t == 0 || t == 1) return const SizedBox.shrink();
+              final scale =
+                  0.6 + 0.5 * Curves.easeOutBack.transform((t * 2).clamp(0.0, 1.0));
+              final opacity =
+                  t < 0.55 ? 1.0 : (1 - (t - 0.55) / 0.45).clamp(0.0, 1.0);
+              final d = widget.size * 0.32;
+              return Opacity(
+                opacity: opacity,
+                child: Transform.scale(
+                  scale: scale,
+                  child: Container(
+                    width: d,
+                    height: d,
+                    padding: EdgeInsets.all(d * 0.27),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4B76B9),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF4B76B9).withOpacity(0.5),
+                          blurRadius: 24,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: CustomPaint(painter: HornIconPainter()),
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ),
@@ -314,7 +426,6 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
     final baseLeft = (car.isHorizontal ? car.lead : car.line) * cell;
     final baseTop = (car.isHorizontal ? car.line : car.lead) * cell;
 
-    // The lane the car drives through: from its body to the exit border.
     final Rect rect;
     switch (car.facing) {
       case SlideDirection.right:
@@ -361,6 +472,63 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
         return const Offset(0, 1);
       case SlideDirection.up:
         return const Offset(0, -1);
+    }
+  }
+}
+
+/// A car animating off the board after being driven away.
+class _Ghost {
+  _Ghost({
+    required this.car,
+    required this.color,
+    required this.cell,
+    required this.boardSize,
+    required this.highBeam,
+    required this.driftSign,
+  });
+
+  final Vehicle car;
+  final Color color;
+  final double cell;
+  final double boardSize;
+  final bool highBeam;
+  final int driftSign;
+  late final AnimationController controller;
+
+  Rect get startRect {
+    final w = (car.isHorizontal ? car.length : 1) * cell;
+    final h = (car.isHorizontal ? 1 : car.length) * cell;
+    final left = (car.isHorizontal ? car.lead : car.line) * cell;
+    final top = (car.isHorizontal ? car.line : car.lead) * cell;
+    return Rect.fromLTWH(left, top, w, h);
+  }
+
+  /// Total translation needed to drive fully off the board.
+  Offset get travel {
+    final r = startRect;
+    switch (car.facing) {
+      case SlideDirection.right:
+        return Offset(boardSize - r.left + cell, 0);
+      case SlideDirection.left:
+        return Offset(-(r.right + cell), 0);
+      case SlideDirection.down:
+        return Offset(0, boardSize - r.top + cell);
+      case SlideDirection.up:
+        return Offset(0, -(r.bottom + cell));
+    }
+  }
+
+  /// Rotate about the front axle so the rear swings out (fishtail).
+  Alignment get frontAlignment {
+    switch (car.facing) {
+      case SlideDirection.right:
+        return const Alignment(0.7, 0);
+      case SlideDirection.left:
+        return const Alignment(-0.7, 0);
+      case SlideDirection.down:
+        return const Alignment(0, 0.7);
+      case SlideDirection.up:
+        return const Alignment(0, -0.7);
     }
   }
 }

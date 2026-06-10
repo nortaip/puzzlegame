@@ -17,6 +17,7 @@ class CarPainter extends CustomPainter {
     this.police = false,
     this.sirenRedLeft = true,
     this.hazardOn = false,
+    this.highBeam = false,
   });
 
   final Color color;
@@ -31,6 +32,9 @@ class CarPainter extends CustomPainter {
 
   /// When true, all four corner lights glow amber (hazard / blocked blink).
   final bool hazardOn;
+
+  /// When true, the headlights blaze (high beams on) — used on a chained launch.
+  final bool highBeam;
 
   static const Color _glassColor = Color(0xFF2A2E37);
 
@@ -265,9 +269,24 @@ class CarPainter extends CustomPainter {
       }
       return;
     }
-    final head = Paint()..color = const Color(0xFFFFF3C4);
+    final head = Paint()
+      ..color = highBeam ? Colors.white : const Color(0xFFFFF3C4);
     final tail = Paint()..color = const Color(0xFFE53935);
     for (final sy in [-hs * 0.62, hs * 0.62]) {
+      if (highBeam) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(
+                center: Offset(hl - l * 0.05, sy),
+                width: l * 0.12,
+                height: s * 0.3),
+            Radius.circular(s * 0.1),
+          ),
+          Paint()
+            ..color = Colors.white.withOpacity(0.9)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+        );
+      }
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromCenter(
@@ -346,7 +365,50 @@ class CarPainter extends CustomPainter {
       old.type != type ||
       old.police != police ||
       old.sirenRedLeft != sirenRedLeft ||
-      old.hazardOn != hazardOn;
+      old.hazardOn != hazardOn ||
+      old.highBeam != highBeam;
+}
+
+/// The horn / signal icon (from the provided SVG): five sound bars beside a
+/// rounded horn body. Flashed in the centre of the screen when a car honks.
+class HornIconPainter extends CustomPainter {
+  HornIconPainter({this.color = Colors.white});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.scale(size.width / 112.0, size.height / 78.0);
+    final paint = Paint()..color = color;
+
+    // Five sound bars.
+    for (final top in [6.54175, 20.9653, 35.3962, 49.8197, 64.2506]) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(0, top, 42.3638, 6.354),
+          const Radius.circular(1.6),
+        ),
+        paint,
+      );
+    }
+
+    // Rounded horn body.
+    final p = Path()
+      ..moveTo(46.0873, 66.5761)
+      ..cubicTo(46.0873, 66.5761, 45.8337, 77.1457, 69.0657, 77.1457)
+      ..cubicTo(72.7892, 77.1457, 75.8172, 76.7907, 78.2875, 76.1532)
+      ..cubicTo(93.9421, 72.7338, 111.429, 57.2163, 111.429, 38.5692)
+      ..cubicTo(111.429, 19.9366, 93.9421, 4.41908, 78.2875, 0.99248)
+      ..cubicTo(75.839, 0.354972, 72.7892, 0, 69.0657, 0)
+      ..cubicTo(45.8337, 0, 46.0873, 10.5696, 46.0873, 10.5696)
+      ..lineTo(46.0873, 66.5761)
+      ..close();
+    canvas.drawPath(p, paint);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant HornIconPainter old) => old.color != color;
 }
 
 /// Top-down police officer: cap, face and shoulders, with a tiny badge. Used in
