@@ -20,6 +20,7 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final TextEditingController _controller = TextEditingController();
   bool _busy = false;
+  String? _error;
 
   @override
   void dispose() {
@@ -30,10 +31,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _start() async {
     final name = _controller.text.trim();
     if (name.length < 2 || _busy) return;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
     Haptics.selection();
-    await ref.read(playerControllerProvider.notifier).setUsername(name);
+    final result =
+        await ref.read(playerControllerProvider.notifier).trySetUsername(name);
     if (!mounted) return;
+    if (result == UsernameResult.taken) {
+      setState(() {
+        _busy = false;
+        _error = 'That name is already taken — try another.';
+      });
+      Haptics.error();
+      return;
+    }
+    if (result == UsernameResult.tooShort) {
+      setState(() {
+        _busy = false;
+        _error = 'Name must be at least 2 characters.';
+      });
+      return;
+    }
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 400),
@@ -103,14 +123,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                       ),
                     ),
+                    if (_error != null) ...[
+                      const SizedBox(height: 4),
+                      Text(_error!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              color: Color(0xFFFFCDD2), fontSize: 13)),
+                    ],
                     const SizedBox(height: 8),
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
-                        onPressed:
-                            _controller.text.trim().length >= 2 ? _start : null,
-                        icon: const Icon(Icons.play_arrow_rounded),
-                        label: const Text('Start Playing'),
+                        onPressed: (_busy || _controller.text.trim().length < 2)
+                            ? null
+                            : _start,
+                        icon: _busy
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Icon(Icons.play_arrow_rounded),
+                        label: Text(_busy ? 'Checking…' : 'Start Playing'),
                       ),
                     ),
                   ],

@@ -81,6 +81,23 @@ class SupabaseService {
     }, onConflict: 'user_id,level');
   }
 
+  /// Whether [name] is already used by another player. Returns false when it
+  /// can't be checked (offline / not configured) so the player isn't blocked.
+  Future<bool> isNameTaken(String name, {String? excludeId}) async {
+    if (!isReady) return false;
+    try {
+      final rows = await _client
+          .from('users')
+          .select('id')
+          .ilike('name', name)
+          .limit(3);
+      final list = (rows as List).cast<Map<String, dynamic>>();
+      return list.any((r) => excludeId == null || r['id'] != excludeId);
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<Map<String, dynamic>?> fetchUser(String userId) async {
     if (!isReady) return null;
     return _client.from('users').select().eq('id', userId).maybeSingle();

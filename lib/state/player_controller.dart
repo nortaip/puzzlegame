@@ -45,10 +45,21 @@ class PlayerController extends Notifier<PlayerProfile> {
 
   bool get hasUsername => state.username.trim().isNotEmpty;
 
-  /// Sets the player's display name (login / welcome screen).
-  Future<void> setUsername(String name) async {
-    state.username = name.trim();
+  /// Sets the player's display name after checking it isn't already taken by
+  /// another player (when online). Returns the outcome so the UI can react.
+  Future<UsernameResult> trySetUsername(String name) async {
+    final n = name.trim();
+    if (n.length < 2) return UsernameResult.tooShort;
+    if (n.toLowerCase() == state.username.toLowerCase()) {
+      return UsernameResult.ok; // unchanged
+    }
+    final taken = await ref
+        .read(supabaseServiceProvider)
+        .isNameTaken(n, excludeId: state.remoteUserId);
+    if (taken) return UsernameResult.taken;
+    state.username = n;
     await _persist();
+    return UsernameResult.ok;
   }
 
   static String _generateId() {
@@ -164,6 +175,9 @@ class PlayerController extends Notifier<PlayerProfile> {
 
 final playerControllerProvider =
     NotifierProvider<PlayerController, PlayerProfile>(PlayerController.new);
+
+/// Outcome of trying to set a username.
+enum UsernameResult { ok, taken, tooShort }
 
 /// Minimal `unawaited` to avoid pulling in dart:async everywhere.
 void unawaited(Future<void> future) {}

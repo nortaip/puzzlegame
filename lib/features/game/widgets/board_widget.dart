@@ -245,8 +245,9 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
     // Vary the exit: sometimes a drift (fishtail), sometimes a smoke puff,
     // sometimes a plain clean getaway (never for the figure-8 showoff).
     final roll = _rng.nextDouble();
-    final drift = !showoff && roll < 0.34;
-    final smoke = !showoff && roll >= 0.34 && roll < 0.62;
+    // Only small (length-2) cars drift; bigger vehicles never do.
+    final drift = !showoff && roll < 0.4 && car.length == 2;
+    final smoke = !showoff && !drift && roll < 0.5;
 
     if (showoff) {
       SoundService.instance.honk();
@@ -346,13 +347,16 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
       );
 
   Widget _normalGhostTransform(_Ghost g, double p) {
-    final off = g.travel * Curves.easeIn.transform(p);
-    final drift =
-        g.drift ? sin(p * pi * 3) * (1 - p) * 0.20 * g.driftSign : 0.0;
+    final off = g.travel * Curves.easeInCubic.transform(p);
+    // A smooth single power-slide: the rear kicks out, holds, then straightens
+    // as the car accelerates away — no spinning.
+    final slide = g.drift
+        ? sin(Curves.easeOut.transform(p) * pi) * 0.30 * g.driftSign
+        : 0.0;
     return Transform.translate(
       offset: off,
       child: Transform.rotate(
-        angle: drift,
+        angle: slide,
         alignment: g.frontAlignment,
         child: _ghostCar(g),
       ),

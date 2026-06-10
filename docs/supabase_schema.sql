@@ -14,6 +14,11 @@ create table if not exists public.users (
 -- If the table already exists, add the display-name column:
 -- alter table public.users add column if not exists name text;
 
+-- Enforce unique (case-insensitive) display names at the DB level. The app also
+-- checks before saving, but this guarantees uniqueness under races:
+create unique index if not exists users_name_lower_unique
+  on public.users (lower(name));
+
 -- ── progress ─────────────────────────────────────────────────────────────────
 create table if not exists public.progress (
   user_id     uuid not null references public.users (id) on delete cascade,
