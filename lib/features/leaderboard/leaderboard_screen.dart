@@ -40,8 +40,9 @@ final leaderboardProvider = FutureProvider<List<LeaderboardEntry>>((ref) async {
     final id = r['id'] as String?;
     final isMe = id != null && id == myId;
     if (isMe) meIncluded = true;
+    final name = (r['name'] as String?)?.trim();
     entries.add(LeaderboardEntry(
-      name: isMe ? 'You' : _shortName(id),
+      name: (name != null && name.isNotEmpty) ? name : _shortName(id),
       level: (r['level'] as int?) ?? 1,
       coins: (r['coins'] as int?) ?? 0,
       isMe: isMe,
@@ -50,7 +51,7 @@ final leaderboardProvider = FutureProvider<List<LeaderboardEntry>>((ref) async {
 
   if (!meIncluded) {
     entries.add(LeaderboardEntry(
-      name: 'You',
+      name: profile.username.isEmpty ? 'You' : profile.username,
       level: profile.currentLevel,
       coins: profile.coins,
       isMe: true,

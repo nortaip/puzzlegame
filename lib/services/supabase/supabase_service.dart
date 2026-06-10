@@ -56,12 +56,14 @@ class SupabaseService {
     required String userId,
     required int coins,
     required int level,
+    String? name,
   }) async {
     if (!isReady) return;
     await _client.from('users').upsert({
       'id': userId,
       'coins': coins,
       'level': level,
+      if (name != null && name.isNotEmpty) 'name': name,
     });
   }
 
@@ -97,7 +99,7 @@ class SupabaseService {
     if (!isReady) return const [];
     final rows = await _client
         .from('users')
-        .select('id, coins, level')
+        .select('id, coins, level, name')
         .order('level', ascending: false)
         .order('coins', ascending: false)
         .limit(limit);

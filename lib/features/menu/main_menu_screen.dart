@@ -55,6 +55,32 @@ class MainMenuScreen extends ConsumerWidget {
                         fontSize: 40,
                         fontWeight: FontWeight.w800,
                         color: Colors.white)),
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: () => _editName(context, ref, profile.username),
+                  child: GlassPanel(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    borderRadius: 20,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.person_rounded,
+                            color: Colors.white, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          profile.username.isEmpty ? 'Player' : profile.username,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15),
+                        ),
+                        const SizedBox(width: 6),
+                        const Icon(Icons.edit, color: Colors.white54, size: 14),
+                      ],
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Text('Level ${profile.currentLevel}',
                     style: const TextStyle(color: Colors.white70, fontSize: 16)),
@@ -106,6 +132,42 @@ class MainMenuScreen extends ConsumerWidget {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const ShopScreen()),
     );
+  }
+
+  Future<void> _editName(
+      BuildContext context, WidgetRef ref, String current) async {
+    final controller = TextEditingController(text: current);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1B1830),
+        title: const Text('Change name', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 16,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Your name',
+            hintStyle: TextStyle(color: Colors.white38),
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (name != null && name.trim().length >= 2) {
+      await ref.read(playerControllerProvider.notifier).setUsername(name);
+    }
   }
 }
 

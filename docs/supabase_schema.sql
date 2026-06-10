@@ -5,10 +5,14 @@
 -- ── users ────────────────────────────────────────────────────────────────────
 create table if not exists public.users (
   id          uuid primary key references auth.users (id) on delete cascade,
+  name        text,
   coins       integer not null default 0,
   level       integer not null default 1,
   created_at  timestamptz not null default now()
 );
+
+-- If the table already exists, add the display-name column:
+-- alter table public.users add column if not exists name text;
 
 -- ── progress ─────────────────────────────────────────────────────────────────
 create table if not exists public.progress (

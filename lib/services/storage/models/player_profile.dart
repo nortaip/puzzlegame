@@ -2,6 +2,8 @@
 /// via [LocalStore]; synced to Supabase opportunistically when online.
 class PlayerProfile {
   PlayerProfile({
+    this.username = '',
+    this.localId = '',
     this.remoteUserId,
     this.coins = 100,
     this.currentLevel = 1,
@@ -21,6 +23,12 @@ class PlayerProfile {
   })  : ownedThemes = ownedThemes ?? [0],
         ownedSkins = ownedSkins ?? [0],
         updatedAt = updatedAt ?? DateTime.now();
+
+  /// Player-chosen display name (set on the welcome/login screen).
+  String username;
+
+  /// Stable locally-generated id, used as the player's handle when offline.
+  String localId;
 
   /// Server-side user id once authenticated/synced; null while purely offline.
   String? remoteUserId;
@@ -56,6 +64,8 @@ class PlayerProfile {
   int revision;
 
   Map<String, dynamic> toJson() => {
+        'username': username,
+        'localId': localId,
         'remoteUserId': remoteUserId,
         'coins': coins,
         'currentLevel': currentLevel,
@@ -75,6 +85,8 @@ class PlayerProfile {
       };
 
   factory PlayerProfile.fromJson(Map<String, dynamic> json) => PlayerProfile(
+        username: json['username'] as String? ?? '',
+        localId: json['localId'] as String? ?? '',
         remoteUserId: json['remoteUserId'] as String?,
         coins: json['coins'] as int? ?? 100,
         currentLevel: json['currentLevel'] as int? ?? 1,

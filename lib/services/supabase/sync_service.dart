@@ -29,6 +29,7 @@ class SyncService {
       userId: userId,
       coins: profile.coins,
       level: profile.currentLevel,
+      name: profile.username,
     );
 
     final pending = await _store.unsyncedProgress();

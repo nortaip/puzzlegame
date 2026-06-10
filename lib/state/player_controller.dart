@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/constants/app_constants.dart';
@@ -19,6 +21,12 @@ class PlayerController extends Notifier<PlayerProfile> {
   Future<void> init() async {
     final store = ref.read(localStoreProvider);
     state = await store.loadProfile();
+    // Give every install a stable local id the first time.
+    if (state.localId.isEmpty) {
+      state.localId = _generateId();
+      await store.saveProfile(state);
+      state = await store.loadProfile();
+    }
     Haptics.enabled = state.hapticsEnabled;
     SoundService.instance.enabled = state.soundEnabled;
     // Pull any newer cloud profile, then push local state up.
@@ -33,6 +41,22 @@ class PlayerController extends Notifier<PlayerProfile> {
     unawaited(ref.read(syncServiceProvider).pushAll());
     // Re-read to reflect bumped revision/updatedAt.
     state = await ref.read(localStoreProvider).loadProfile();
+  }
+
+  bool get hasUsername => state.username.trim().isNotEmpty;
+
+  /// Sets the player's display name (login / welcome screen).
+  Future<void> setUsername(String name) async {
+    state.username = name.trim();
+    await _persist();
+  }
+
+  static String _generateId() {
+    final r = Random();
+    final ts = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    final rand =
+        List.generate(5, (_) => r.nextInt(36).toRadixString(36)).join();
+    return 'u_$ts$rand';
   }
 
   bool canAfford(int cost) => state.coins >= cost;

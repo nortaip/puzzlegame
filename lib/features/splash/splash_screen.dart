@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../game/themes/environment_theme.dart';
+import '../../state/player_controller.dart';
 import '../../widgets/gradient_background.dart';
+import '../login/login_screen.dart';
 import '../menu/main_menu_screen.dart';
 
 /// Branded splash with a short, snappy entrance animation. Kept under ~1.2s so
@@ -29,10 +31,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   void _goHome() {
     if (!mounted) return;
+    // First launch (no name yet) → the welcome/login screen; otherwise the menu.
+    final hasUser = ref.read(playerControllerProvider.notifier).hasUsername;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 400),
-        pageBuilder: (_, __, ___) => const MainMenuScreen(),
+        pageBuilder: (_, __, ___) =>
+            hasUser ? const MainMenuScreen() : const LoginScreen(),
         transitionsBuilder: (_, anim, __, child) =>
             FadeTransition(opacity: anim, child: child),
       ),
