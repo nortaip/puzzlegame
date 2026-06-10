@@ -9,9 +9,9 @@ import '../../../state/game_controller.dart';
 import 'board_painter.dart';
 import 'vehicle_widget.dart';
 
-/// Renders the parking grid and turns drags/taps into "drive off" actions:
-/// flick a car toward an open edge and it rides off the board; flick it into a
-/// jammed lane and it bumps and shakes. The level is cleared when every car has
+/// Renders the parking grid and turns taps/flicks into "drive forward" actions:
+/// tap a car and it drives off in its arrow direction if the lane is clear;
+/// otherwise it lunges, bumps and shakes. The level clears when every car has
 /// left.
 class BoardWidget extends ConsumerStatefulWidget {
   const BoardWidget({super.key, required this.size});
@@ -25,21 +25,19 @@ class BoardWidget extends ConsumerStatefulWidget {
 
 class _BoardWidgetState extends ConsumerState<BoardWidget>
     with TickerProviderStateMixin {
-  /// Cars currently playing their ride-off animation (id → exit direction).
-  final Map<int, SlideDirection> _exiting = {};
+  /// Cars currently playing their ride-off animation.
+  final Set<int> _exiting = {};
 
-  late final AnimationController _shake = AnimationController(
+  late final AnimationController _bump = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 320),
+    duration: const Duration(milliseconds: 360),
   );
-  int? _shakeId;
-  Axis _shakeAxis = Axis.horizontal;
-
-  Offset _drag = Offset.zero;
+  int? _bumpId;
+  Offset _bumpDir = Offset.zero;
 
   @override
   void dispose() {
-    _shake.dispose();
+    _bump.dispose();
     super.dispose();
   }
 
@@ -74,11 +72,11 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
     final baseLeft = (car.isHorizontal ? car.lead : car.line) * cell;
     final baseTop = (car.isHorizontal ? car.line : car.lead) * cell;
 
-    final exitDir = _exiting[car.id];
     var left = baseLeft;
     var top = baseTop;
-    if (exitDir != null) {
-      switch (exitDir) {
+    if (_exiting.contains(car.id)) {
+      // Send the car fully off the board along its facing direction.
+      switch (car.facing) {
         case SlideDirection.right:
           left = widget.size + cell;
         case SlideDirection.left:
@@ -90,108 +88,84 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
       }
     }
 
-    final isHinted = game.hint?.carId == car.id;
-
     Widget child = GestureDetector(
-      onPanStart: (_) => _drag = Offset.zero,
-      onPanUpdate: (d) => _drag += d.delta,
-      onPanEnd: (_) => _onFlick(car),
-      onTap: () => _onTap(car),
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _drive(car),
+      onPanEnd: (_) => _drive(car),
       child: VehicleWidget(
         vehicle: car,
         color: game.theme.vehicleColor(car.skinId),
-        hinted: isHinted,
+        hinted: game.hintCarId == car.id,
       ),
     );
 
-    // Apply a brief shake to the bumped car.
-    if (_shakeId == car.id) {
+    // Directional lunge when the car is bumped against a jammed lane.
+    if (_bumpId == car.id) {
       child = AnimatedBuilder(
-        animation: _shake,
+        animation: _bump,
         builder: (context, c) {
-          final dx = _shakeAxis == Axis.horizontal ? _wobble() : 0.0;
-          final dy = _shakeAxis == Axis.vertical ? _wobble() : 0.0;
-          return Transform.translate(offset: Offset(dx, dy), child: c);
+          final k = sin(_bump.value * pi) * (1 - _bump.value) * 10;
+          return Transform.translate(offset: _bumpDir * k, child: c);
         },
         child: child,
       );
     }
 
+    final exiting = _exiting.contains(car.id);
     return AnimatedPositioned(
       key: ValueKey(car.id),
-      duration: exitDir != null
-          ? const Duration(milliseconds: 300)
-          : const Duration(milliseconds: 160),
-      curve: exitDir != null ? Curves.easeIn : Curves.easeOut,
+      duration: exiting
+          ? const Duration(milliseconds: 360)
+          : const Duration(milliseconds: 150),
+      // Accelerate away (engine pulling off) on exit; gentle otherwise.
+      curve: exiting ? Curves.easeInCubic : Curves.easeOut,
       left: left,
       top: top,
       width: width,
       height: height,
-      onEnd: exitDir != null ? () => _onExitAnimationDone(car.id) : null,
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 240),
-        opacity: exitDir != null ? 0.0 : 1.0,
-        child: child,
-      ),
+      onEnd: exiting ? () => _onExitDone(car.id) : null,
+      child: child,
     );
   }
 
-  double _wobble() => sin(_shake.value * pi * 6) * (1 - _shake.value) * 6;
-
-  /// Resolves a flick into an exit attempt along the dominant drag axis.
-  void _onFlick(Vehicle car) {
-    if (_exiting.isNotEmpty) return; // ignore input mid-animation
-    final drag = _drag;
-    _drag = Offset.zero;
-    if (drag.distance < 8) return; // too small — treat taps via onTap
-
-    final SlideDirection dir;
-    if (drag.dx.abs() >= drag.dy.abs()) {
-      dir = drag.dx >= 0 ? SlideDirection.right : SlideDirection.left;
-    } else {
-      dir = drag.dy >= 0 ? SlideDirection.down : SlideDirection.up;
-    }
-    _attemptExit(car, dir);
-  }
-
-  /// A tap drives the car off whichever open edge is nearest.
-  void _onTap(Vehicle car) {
-    if (_exiting.isNotEmpty) return;
-    final dirs = ref.read(gameControllerProvider.notifier).exitDirections(car.id);
-    if (dirs.isEmpty) {
-      _bump(car, car.isHorizontal ? Axis.horizontal : Axis.vertical);
-      return;
-    }
-    _startExit(car, dirs.first);
-  }
-
-  void _attemptExit(Vehicle car, SlideDirection dir) {
+  /// Attempt to drive the tapped car forward (its single arrow direction).
+  void _drive(Vehicle car) {
+    if (_exiting.contains(car.id)) return;
     final controller = ref.read(gameControllerProvider.notifier);
-    if (car.axis != dir.axis || !controller.canExit(car.id, dir)) {
-      _bump(car, dir.axis == MoveAxis.horizontal ? Axis.horizontal : Axis.vertical);
-      return;
+    if (controller.canDriveOff(car.id)) {
+      setState(() => _exiting.add(car.id));
+    } else {
+      _doBump(car);
     }
-    _startExit(car, dir);
   }
 
-  void _startExit(Vehicle car, SlideDirection dir) {
-    setState(() => _exiting[car.id] = dir);
-  }
-
-  void _onExitAnimationDone(int carId) {
-    if (!_exiting.containsKey(carId)) return;
+  void _onExitDone(int carId) {
+    if (!_exiting.contains(carId)) return;
     setState(() => _exiting.remove(carId));
     ref.read(gameControllerProvider.notifier).exitCar(carId);
   }
 
-  void _bump(Vehicle car, Axis axis) {
+  void _doBump(Vehicle car) {
     ref.read(gameControllerProvider.notifier).registerMistake();
     setState(() {
-      _shakeId = car.id;
-      _shakeAxis = axis;
+      _bumpId = car.id;
+      _bumpDir = _unit(car.facing);
     });
-    _shake.forward(from: 0).whenComplete(() {
-      if (mounted && _shakeId == car.id) setState(() => _shakeId = null);
+    _bump.forward(from: 0).whenComplete(() {
+      if (mounted && _bumpId == car.id) setState(() => _bumpId = null);
     });
+  }
+
+  Offset _unit(SlideDirection d) {
+    switch (d) {
+      case SlideDirection.right:
+        return const Offset(1, 0);
+      case SlideDirection.left:
+        return const Offset(-1, 0);
+      case SlideDirection.down:
+        return const Offset(0, 1);
+      case SlideDirection.up:
+        return const Offset(0, -1);
+    }
   }
 }

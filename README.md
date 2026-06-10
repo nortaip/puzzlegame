@@ -1,12 +1,12 @@
 # Flow & Park Puzzle 🚗🧩
 
-A hyper-casual, **fully-offline** car-parking puzzle built with Flutter, with an
-optional liquid-sort expansion mode. **Open the road for every car:** flick a car
-toward an open edge and it drives off the board — clear all the cars to win.
-Levels are **procedurally generated and provably solvable**, the UI is
-glassmorphic and animated at 60 FPS, and the whole economy (coins, power-ups,
-cosmetics) works without a network connection. Supabase is used only for optional
-cloud save, analytics and leaderboards.
+A hyper-casual, **fully-offline** car-parking jam puzzle built with Flutter, with
+an optional liquid-sort expansion mode. Every car has an **arrow**: tap it and it
+drives forward off the board if the lane ahead is clear — **clear the whole road**
+to win. Levels are **procedurally generated, get harder as you climb**, and are
+**provably solvable**; the UI is glassmorphic and animated at 60 FPS, and the
+whole economy (coins, power-ups, cosmetics) works without a network connection.
+Supabase is used only for optional cloud save, analytics and leaderboards.
 
 > **Heads-up:** this repository contains the full Dart/Flutter source and tests.
 > The platform folders (`android/`, `ios/`, `web/`) are generated locally with
@@ -155,9 +155,10 @@ flutter test
 | 51–120   | 7×7  | tighter packing          |
 | 121+     | 8×8  | densest jams             |
 
-**Goal:** clear the road — drive every car off the board. Flick a car toward an
-open edge to send it off; flick it into a jammed lane and it bumps. A clean clear
-with no blocked taps earns three stars.
+**Goal:** clear the road — drive every car off the board. Tap a car to send it
+forward in its arrow direction; tap one whose lane is jammed and it lunges and
+bumps. A clean clear with no blocked taps earns three stars. Each car's arrow is
+fixed, so deeper levels (more cars, parked deeper) need longer un-jamming chains.
 
 **Power-ups:** 🚓 Police (remove a stuck car) · 🔄 Shuffle (re-randomise into a
 fresh, still-clearable layout) · 💡 Hint (highlights the most obvious car to send

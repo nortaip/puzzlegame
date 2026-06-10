@@ -1,8 +1,9 @@
 import 'direction.dart';
 
-/// A car parked on the grid. In "open the road" mode a car never repositions —
-/// it sits at a fixed location until the player drives it off an open edge — so
-/// its full position ([line] + [lead]) is immutable.
+/// A car parked on the grid. Each car has a single fixed [facing] direction
+/// (shown as an arrow): tapping it drives it forward that way until it leaves
+/// the board. It never reverses or repositions, so its location
+/// ([line] + [lead]) is immutable.
 ///
 /// Coordinates:
 ///   • horizontal car → occupies row [line], columns [lead] .. [lead]+[length]-1
@@ -10,17 +11,15 @@ import 'direction.dart';
 class Vehicle {
   const Vehicle({
     required this.id,
-    required this.axis,
     required this.length,
     required this.line,
     required this.lead,
+    required this.facing,
     this.skinId = 0,
   });
 
   /// Stable, never-reused identifier (used as an animation key).
   final int id;
-
-  final MoveAxis axis;
 
   /// Number of cells the car occupies (2 = car, 3 = truck).
   final int length;
@@ -32,9 +31,13 @@ class Vehicle {
   /// Leading (top/left) cell along the movement axis.
   final int lead;
 
+  /// The single direction this car can drive (its arrow).
+  final SlideDirection facing;
+
   /// Index into the active palette (cosmetic only).
   final int skinId;
 
+  MoveAxis get axis => facing.axis;
   bool get isHorizontal => axis == MoveAxis.horizontal;
 
   /// Row of the car's i-th body cell.
@@ -45,15 +48,15 @@ class Vehicle {
 
   Vehicle copyWith({int? id, int? skinId}) => Vehicle(
         id: id ?? this.id,
-        axis: axis,
         length: length,
         line: line,
         lead: lead,
+        facing: facing,
         skinId: skinId ?? this.skinId,
       );
 
   @override
   String toString() =>
       'Vehicle(id:$id, ${isHorizontal ? "H" : "V"}, len:$length, '
-      'line:$line, lead:$lead)';
+      'line:$line, lead:$lead, facing:$facing)';
 }

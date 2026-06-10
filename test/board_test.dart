@@ -5,13 +5,13 @@ import 'package:flow_park_puzzle/game/models/vehicle.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  // A 6x6 board: a horizontal car on row 2 blocked on its right by a vertical
-  // truck in column 3.
+  // A 6x6 board: a right-facing car on row 2 is blocked by a down-facing truck
+  // in column 3.
   Board build() => Board(
         size: 6,
         cars: const [
-          Vehicle(id: 0, axis: MoveAxis.horizontal, length: 2, line: 2, lead: 0),
-          Vehicle(id: 1, axis: MoveAxis.vertical, length: 3, line: 3, lead: 0),
+          Vehicle(id: 0, length: 2, line: 2, lead: 0, facing: SlideDirection.right),
+          Vehicle(id: 1, length: 3, line: 3, lead: 0, facing: SlideDirection.down),
         ],
       );
 
@@ -24,19 +24,17 @@ void main() {
       expect(occ[2 * 6 + 3], 1);
     });
 
-    test('a car can drive off an open edge but not a jammed one', () {
+    test('a car can only drive off if its arrow lane is clear', () {
       final board = build();
-      final carA = board.carById(0)!;
-      // Left lane is clear; right lane is blocked by the truck in column 3.
-      expect(board.canExit(carA, SlideDirection.left), isTrue);
-      expect(board.canExit(carA, SlideDirection.right), isFalse);
-      expect(board.exitDirections(carA), [SlideDirection.left]);
+      final carA = board.carById(0)!; // faces right, blocked by the truck
+      final truck = board.carById(1)!; // faces down, open lane below
+      expect(board.canDriveOff(carA), isFalse);
+      expect(board.canDriveOff(truck), isTrue);
     });
 
     test('removing the blocker opens the previously jammed lane', () {
       final board = build().removeCar(1);
-      final carA = board.carById(0)!;
-      expect(board.canExit(carA, SlideDirection.right), isTrue);
+      expect(board.canDriveOff(board.carById(0)!), isTrue);
     });
 
     test('board is cleared only when all cars have left', () {
@@ -46,14 +44,7 @@ void main() {
       expect(board.isCleared, isTrue);
     });
 
-    test('vertical truck can exit either open end', () {
-      final board = build();
-      final truck = board.carById(1)!;
-      expect(board.canExit(truck, SlideDirection.up), isTrue);
-      expect(board.canExit(truck, SlideDirection.down), isTrue);
-    });
-
-    test('solver confirms the board is clearable', () {
+    test('solver confirms the board is clearable (right order)', () {
       expect(const PuzzleSolver().canClear(build()), isTrue);
     });
   });

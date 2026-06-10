@@ -1,8 +1,9 @@
 import 'direction.dart';
 import 'vehicle.dart';
 
-/// The parking-grid state for "open the road" mode: a set of parked [cars]. The
-/// puzzle is solved when every car has driven off the board ([isCleared]).
+/// The parking-grid state: a set of parked [cars], each of which can only drive
+/// in its own [Vehicle.facing] direction. The puzzle is solved when every car
+/// has driven off the board ([isCleared]).
 class Board {
   Board({required this.size, required this.cars});
 
@@ -33,12 +34,12 @@ class Board {
     return grid;
   }
 
-  /// Whether [car] has a clear path to the border in [direction] and can drive
-  /// off that way. The direction must match the car's movement axis.
-  bool canExit(Vehicle car, SlideDirection direction) {
-    if (car.axis != direction.axis) return false;
-    final grid = occupancy();
+  /// Whether the lane in front of [car] (its [Vehicle.facing] direction) is
+  /// clear all the way to the border, so it can drive off.
+  bool canDriveOff(Vehicle car) => _laneClear(car, car.facing);
 
+  bool _laneClear(Vehicle car, SlideDirection direction) {
+    final grid = occupancy();
     bool free(int r, int c) => grid[r * size + c] == -1;
 
     switch (direction) {
@@ -63,14 +64,6 @@ class Board {
         }
         return true;
     }
-  }
-
-  /// The directions (one or both ends of the car's axis) it can currently exit.
-  List<SlideDirection> exitDirections(Vehicle car) {
-    final dirs = car.isHorizontal
-        ? const [SlideDirection.left, SlideDirection.right]
-        : const [SlideDirection.up, SlideDirection.down];
-    return [for (final d in dirs) if (canExit(car, d)) d];
   }
 
   /// A new board with car [id] removed (driven off).

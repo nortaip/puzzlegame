@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../game/models/vehicle.dart';
+import 'car_painter.dart';
 
-/// Pure visual for a single car — a glossy rounded body with a windshield band
-/// oriented along its travel axis, soft shadow, and a glow when hinted.
-class VehicleWidget extends StatelessWidget {
+/// A single car: a painted top-down vehicle that animates in on first build and
+/// glows + pulses when highlighted by a Hint.
+class VehicleWidget extends StatefulWidget {
   const VehicleWidget({
     super.key,
     required this.vehicle,
@@ -17,74 +18,87 @@ class VehicleWidget extends StatelessWidget {
   final bool hinted;
 
   @override
+  State<VehicleWidget> createState() => _VehicleWidgetState();
+}
+
+class _VehicleWidgetState extends State<VehicleWidget>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 750),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.hinted) _pulse.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(VehicleWidget old) {
+    super.didUpdateWidget(old);
+    if (widget.hinted && !_pulse.isAnimating) {
+      _pulse.repeat(reverse: true);
+    } else if (!widget.hinted && _pulse.isAnimating) {
+      _pulse
+        ..stop()
+        ..value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final horizontal = vehicle.isHorizontal;
-    return AnimatedScale(
-      duration: const Duration(milliseconds: 160),
-      scale: hinted ? 1.04 : 1.0,
-      child: Container(
-        margin: const EdgeInsets.all(3),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color.lerp(color, Colors.white, 0.25)!,
-              color,
-              Color.lerp(color, Colors.black, 0.18)!,
-            ],
-          ),
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.28),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-            if (hinted)
-              BoxShadow(
-                color: Colors.white.withOpacity(0.9),
-                blurRadius: 18,
-                spreadRadius: 1,
-              ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            // Windshield band oriented along the body.
-            Align(
-              alignment:
-                  horizontal ? Alignment.centerLeft : Alignment.topCenter,
-              child: FractionallySizedBox(
-                widthFactor: horizontal ? 0.32 : 0.66,
-                heightFactor: horizontal ? 0.66 : 0.32,
-                child: Container(
-                  margin: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.55),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            ),
-            // Glossy top highlight.
-            Align(
-              alignment: Alignment.topCenter,
-              child: FractionallySizedBox(
-                widthFactor: 0.9,
-                heightFactor: 0.18,
-                child: Container(
-                  margin: const EdgeInsets.only(top: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.18),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+    final car = Padding(
+      padding: const EdgeInsets.all(2),
+      child: CustomPaint(
+        painter: CarPainter(color: widget.color, facing: widget.vehicle.facing),
+        child: const SizedBox.expand(),
       ),
+    );
+
+    Widget content = car;
+    if (widget.hinted) {
+      content = AnimatedBuilder(
+        animation: _pulse,
+        builder: (context, child) {
+          final t = _pulse.value;
+          return Transform.scale(
+            scale: 1.0 + 0.05 * t,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.white.withOpacity(0.55 + 0.35 * t),
+                    blurRadius: 14 + 8 * t,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: child,
+            ),
+          );
+        },
+        child: car,
+      );
+    }
+
+    // Entrance: a quick parking "settle" the first time the car appears.
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutBack,
+      builder: (context, t, child) => Opacity(
+        opacity: t.clamp(0.0, 1.0),
+        child: Transform.scale(scale: 0.7 + 0.3 * t, child: child),
+      ),
+      child: content,
     );
   }
 }

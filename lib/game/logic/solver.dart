@@ -2,20 +2,12 @@ import '../models/board.dart';
 import '../models/direction.dart';
 import '../models/vehicle.dart';
 
-/// A single suggested exit move: drive car [carId] off toward [direction].
-class ExitMove {
-  const ExitMove(this.carId, this.direction);
-  final int carId;
-  final SlideDirection direction;
-}
-
-/// Solver / verifier for "open the road" mode.
+/// Solver / verifier for the drive-off puzzle.
 ///
-/// Driving a car off the board only ever **frees** cells, so it can never make
-/// another car non-exitable. That means the set of currently-exitable cars only
-/// grows as cars leave — so a simple greedy elimination is *complete*: if any
-/// removable car exists at every step until the board is empty, the level is
-/// solvable; otherwise it is not. No exponential search is required.
+/// Driving a car off the board only ever **frees** cells, so it can never block
+/// another car. The set of currently-drivable cars therefore only grows as cars
+/// leave — so a simple greedy elimination is *complete*: if a drivable car
+/// exists at every step until the board is empty, the level is solvable.
 class PuzzleSolver {
   const PuzzleSolver();
 
@@ -23,7 +15,7 @@ class PuzzleSolver {
   bool canClear(Board start) {
     var board = start.clone();
     while (!board.isCleared) {
-      final next = _anyExitable(board);
+      final next = _anyDrivable(board);
       if (next == null) return false; // deadlocked with cars remaining
       board = board.removeCar(next.id);
     }
@@ -32,42 +24,35 @@ class PuzzleSolver {
 
   bool isSolvable(Board start) => canClear(start);
 
-  /// The best next move to surface as a Hint: prefer the car nearest a border
-  /// (the most obvious one), so the hint feels natural.
-  ExitMove? bestNextMove(Board start) {
-    Vehicle? bestCar;
-    SlideDirection? bestDir;
+  /// The id of the most obvious car to drive off next (nearest its border), for
+  /// the Hint power-up; null if none can currently move.
+  int? bestNextCar(Board start) {
+    Vehicle? best;
     var bestDistance = 1 << 30;
-
     for (final car in start.cars) {
-      for (final dir in start.exitDirections(car)) {
-        final distance = _distanceToBorder(start.size, car, dir);
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          bestCar = car;
-          bestDir = dir;
-        }
+      if (!start.canDriveOff(car)) continue;
+      final distance = _distanceToBorder(start.size, car);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = car;
       }
     }
-    if (bestCar == null) return null;
-    return ExitMove(bestCar.id, bestDir!);
+    return best?.id;
   }
 
-  Vehicle? _anyExitable(Board board) {
+  Vehicle? _anyDrivable(Board board) {
     for (final car in board.cars) {
-      if (board.exitDirections(car).isNotEmpty) return car;
+      if (board.canDriveOff(car)) return car;
     }
     return null;
   }
 
-  int _distanceToBorder(int size, Vehicle car, SlideDirection dir) {
-    switch (dir) {
+  int _distanceToBorder(int size, Vehicle car) {
+    switch (car.facing) {
       case SlideDirection.left:
-        return car.lead;
       case SlideDirection.up:
         return car.lead;
       case SlideDirection.right:
-        return size - (car.lead + car.length);
       case SlideDirection.down:
         return size - (car.lead + car.length);
     }

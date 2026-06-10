@@ -6,7 +6,6 @@ import '../core/constants/app_constants.dart';
 import '../core/utils/haptics.dart';
 import '../game/logic/solver.dart';
 import '../game/models/board.dart';
-import '../game/models/direction.dart';
 import '../game/models/level.dart';
 import '../game/models/vehicle.dart';
 import '../game/themes/environment_theme.dart';
@@ -16,7 +15,7 @@ import 'providers.dart';
 
 enum GameStatus { loading, playing, won }
 
-/// Immutable snapshot of an in-progress "open the road" puzzle.
+/// Immutable snapshot of an in-progress drive-off puzzle.
 class GameState {
   const GameState({
     required this.status,
@@ -26,7 +25,7 @@ class GameState {
     required this.moveCount,
     required this.mistakes,
     required this.theme,
-    this.hint,
+    this.hintCarId,
   });
 
   final GameStatus status;
@@ -44,8 +43,8 @@ class GameState {
 
   final EnvironmentTheme theme;
 
-  /// The currently highlighted hint move, if any.
-  final ExitMove? hint;
+  /// The currently highlighted hint car, if any.
+  final int? hintCarId;
 
   List<Vehicle> get cars => board.cars;
   int get carsLeft => board.cars.length;
@@ -63,7 +62,7 @@ class GameState {
     Board? board,
     int? moveCount,
     int? mistakes,
-    ExitMove? Function()? hint,
+    int? Function()? hintCarId,
   }) {
     return GameState(
       status: status ?? this.status,
@@ -73,13 +72,13 @@ class GameState {
       moveCount: moveCount ?? this.moveCount,
       mistakes: mistakes ?? this.mistakes,
       theme: theme,
-      hint: hint != null ? hint() : this.hint,
+      hintCarId: hintCarId != null ? hintCarId() : this.hintCarId,
     );
   }
 }
 
-/// Drives a single puzzle session: validates exits, removes cleared cars, runs
-/// power-ups, and detects the win (board fully cleared).
+/// Drives a single puzzle session: validates drive-offs, removes cleared cars,
+/// runs power-ups, and detects the win (board fully cleared).
 class GameController extends Notifier<GameState?> {
   final PuzzleSolver _solver = const PuzzleSolver();
 
@@ -117,20 +116,12 @@ class GameController extends Notifier<GameState?> {
     );
   }
 
-  // ── Exit queries (used by the board widget) ──────────────────────────────
-  bool canExit(int carId, SlideDirection direction) {
-    final s = state;
-    if (s == null) return false;
-    final car = s.board.carById(carId);
-    if (car == null) return false;
-    return s.board.canExit(car, direction);
-  }
-
-  List<SlideDirection> exitDirections(int carId) {
+  /// Whether a car's forward lane is clear so it can drive off.
+  bool canDriveOff(int carId) {
     final s = state;
     final car = s?.board.carById(carId);
-    if (s == null || car == null) return const [];
-    return s.board.exitDirections(car);
+    if (s == null || car == null) return false;
+    return s.board.canDriveOff(car);
   }
 
   /// Commits a car driving off the board (called after the ride-off animation).
@@ -145,14 +136,13 @@ class GameController extends Notifier<GameState?> {
       board: board,
       moveCount: s.moveCount + 1,
       status: won ? GameStatus.won : GameStatus.playing,
-      hint: () => null,
+      hintCarId: () => null,
     );
     Haptics.selection();
     if (won) _onWin();
   }
 
-  /// Records a blocked exit attempt (a car the player tried to drive through a
-  /// jammed lane). Counts against the star rating.
+  /// Records a blocked drive attempt (a car pointed into a jammed lane).
   void registerMistake() {
     final s = state;
     if (s == null || s.status != GameStatus.playing) return;
@@ -189,21 +179,18 @@ class GameController extends Notifier<GameState?> {
   void showHint() {
     final s = state;
     if (s == null) return;
-    final best = _solver.bestNextMove(s.board);
-    if (best == null) return;
-    state = s.copyWith(hint: () => best);
+    final carId = _solver.bestNextCar(s.board);
+    if (carId == null) return;
+    state = s.copyWith(hintCarId: () => carId);
     ref.read(analyticsServiceProvider).powerUpUsed('hint');
   }
 
   /// Police: instantly removes one car for free (always keeps the board
-  /// clearable, since removal only frees space). Prefers a car that is still
-  /// jammed in, to maximise impact.
+  /// clearable, since removal only frees space). Prefers a jammed-in car.
   bool usePolice() {
     final s = state;
     if (s == null || s.board.cars.isEmpty) return false;
-    final jammed = s.board.cars
-        .where((c) => s.board.exitDirections(c).isEmpty)
-        .toList();
+    final jammed = s.board.cars.where((c) => !s.board.canDriveOff(c)).toList();
     final victim = jammed.isNotEmpty ? jammed.first : s.board.cars.first;
 
     final board = s.board.removeCar(victim.id);
@@ -211,15 +198,15 @@ class GameController extends Notifier<GameState?> {
     state = s.copyWith(
       board: board,
       status: won ? GameStatus.won : GameStatus.playing,
-      hint: () => null,
+      hintCarId: () => null,
     );
     ref.read(analyticsServiceProvider).powerUpUsed('police');
     if (won) _onWin();
     return true;
   }
 
-  /// Shuffle: re-randomises the board into a fresh, still-clearable layout with
-  /// the same car count (keeps the move counter and mistakes).
+  /// Shuffle: re-randomises the board into a fresh, still-clearable layout for
+  /// the same level (keeps the move counter and mistakes).
   bool useShuffle() {
     final s = state;
     if (s == null) return false;
@@ -228,7 +215,7 @@ class GameController extends Notifier<GameState?> {
       s.level.number,
       seed: Random().nextInt(1 << 31),
     );
-    state = s.copyWith(board: fresh.newBoard(), hint: () => null);
+    state = s.copyWith(board: fresh.newBoard(), hintCarId: () => null);
     ref.read(analyticsServiceProvider).powerUpUsed('shuffle');
     return true;
   }

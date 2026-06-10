@@ -7,15 +7,18 @@ import '../models/vehicle.dart';
 import 'difficulty.dart';
 import 'solver.dart';
 
-/// Procedural generator for "open the road" levels that are **guaranteed
-/// clearable**.
+/// Procedural generator for drive-off levels that are **guaranteed clearable**.
 ///
 /// Strategy — *reverse construction*. The solved state is an empty board. We
 /// build a puzzle by driving cars *in* from the borders: each new car enters
 /// from one edge and parks at some depth, and we only place it if the whole lane
-/// it travelled is currently empty. Driving the cars back out in the reverse of
-/// their placement order is therefore always a valid solution — so the board is
-/// solvable by construction. The [PuzzleSolver] re-verifies as a safety net.
+/// it travelled is currently empty. Its [Vehicle.facing] is set to point back
+/// toward that edge, so driving the cars off in the reverse of their placement
+/// order is always a valid solution — the board is solvable by construction.
+///
+/// Difficulty scales with the level: more cars, and (via [DifficultyConfig.depthBias])
+/// cars parked deeper, which forces longer unjamming chains. [PuzzleSolver]
+/// re-verifies defensively.
 class LevelGenerator {
   LevelGenerator({PuzzleSolver? solver}) : _solver = solver ?? const PuzzleSolver();
 
@@ -26,16 +29,21 @@ class LevelGenerator {
     final baseSeed = seed ?? (DateTime.now().microsecondsSinceEpoch ^ number);
     final rng = Random(baseSeed);
 
-    final minCars = max(3, (cfg.vehicleCount * 0.7).round());
+    final minCars = max(4, (cfg.vehicleCount * 0.8).round());
 
     Board? best;
-    for (var attempt = 0; attempt < 60; attempt++) {
+    var bestCount = -1;
+    for (var attempt = 0; attempt < 80; attempt++) {
       final board = _build(cfg, rng);
-      if (board.cars.length < minCars) continue;
-      // Reverse construction already guarantees this; verify defensively.
-      if (_solver.canClear(board)) {
+      if (!_solver.canClear(board)) continue; // defensive; should never fail
+      if (board.cars.length >= minCars) {
         best = board;
         break;
+      }
+      // Keep the fullest fallback in case we never hit minCars.
+      if (board.cars.length > bestCount) {
+        bestCount = board.cars.length;
+        best = board;
       }
     }
 
@@ -55,24 +63,31 @@ class LevelGenerator {
     final cars = <Vehicle>[];
     var nextId = 0;
 
-    final guardLimit = cfg.vehicleCount * 25;
+    final guardLimit = cfg.vehicleCount * 30;
     var guard = 0;
     while (cars.length < cfg.vehicleCount && guard < guardLimit) {
       guard++;
-      final axis = rng.nextBool() ? MoveAxis.horizontal : MoveAxis.vertical;
+      final horizontal = rng.nextBool();
       final length = (cfg.allowTrucks && rng.nextInt(3) == 0) ? 3 : 2;
       final line = rng.nextInt(size);
-      final lead = rng.nextInt(size - length + 1);
-      final fromStart = rng.nextBool(); // enter from left/top vs right/bottom
+      final fromStart = rng.nextBool(); // entered from left/top vs right/bottom
+      final lead = _pickLead(size, length, fromStart, cfg.depthBias, rng);
 
-      if (!_laneClear(occ, size, axis, line, lead, length, fromStart)) continue;
+      if (!_laneClear(occ, size, horizontal, line, lead, length, fromStart)) {
+        continue;
+      }
+
+      // A car that drove in from the start edge exits back toward it, etc.
+      final facing = horizontal
+          ? (fromStart ? SlideDirection.left : SlideDirection.right)
+          : (fromStart ? SlideDirection.up : SlideDirection.down);
 
       final car = Vehicle(
         id: nextId,
-        axis: axis,
         length: length,
         line: line,
         lead: lead,
+        facing: facing,
         skinId: nextId,
       );
       _stampBody(occ, size, car);
@@ -83,14 +98,29 @@ class LevelGenerator {
     return Board(size: size, cars: cars);
   }
 
-  /// Whether the lane a car would travel through on entry is empty. For a car
-  /// entering from the start edge (left/top) the lane is cells 0..(lead+len-1);
-  /// from the end edge (right/bottom) it is cells lead..(size-1). The car's body
-  /// is included, so this also guarantees no overlap.
+  /// Picks how deep the car parks. With higher [depthBias] we bias toward the
+  /// deepest valid position (furthest from the exit edge), creating tougher
+  /// interlocking jams.
+  int _pickLead(int size, int length, bool fromStart, double depthBias, Random rng) {
+    final maxLead = size - length;
+    if (maxLead <= 0) return 0;
+    // "Depth" for a start-edge car (exits left/up) increases with lead; for an
+    // end-edge car (exits right/down) it increases as lead decreases.
+    final r1 = rng.nextDouble();
+    final r2 = rng.nextDouble();
+    final biased = depthBias > 0 ? max(r1, r2) : r1; // skew toward 1.0
+    final depthFraction = depthBias * biased + (1 - depthBias) * r1;
+    final deep = (depthFraction * maxLead).round().clamp(0, maxLead);
+    return fromStart ? deep : maxLead - deep;
+  }
+
+  /// Whether the lane a car would travel through on entry is empty. From the
+  /// start edge the lane is cells 0..(lead+len-1); from the end edge it is
+  /// cells lead..(size-1). The body is included, so this also rejects overlaps.
   bool _laneClear(
     List<int> occ,
     int size,
-    MoveAxis axis,
+    bool horizontal,
     int line,
     int lead,
     int length,
@@ -99,8 +129,8 @@ class LevelGenerator {
     final start = fromStart ? 0 : lead;
     final end = fromStart ? lead + length - 1 : size - 1;
     for (var i = start; i <= end; i++) {
-      final r = axis == MoveAxis.horizontal ? line : i;
-      final c = axis == MoveAxis.horizontal ? i : line;
+      final r = horizontal ? line : i;
+      final c = horizontal ? i : line;
       if (occ[r * size + c] != -1) return false;
     }
     return true;
@@ -113,15 +143,15 @@ class LevelGenerator {
   }
 
   /// A tiny, clearable-by-construction board, used only if random construction
-  /// somehow underfills. Three non-overlapping cars on separate lines.
+  /// somehow underfills.
   Board _fallback(DifficultyConfig cfg) {
     final size = cfg.gridSize;
     return Board(
       size: size,
       cars: [
-        Vehicle(id: 0, axis: MoveAxis.horizontal, length: 2, line: 0, lead: 0),
-        Vehicle(id: 1, axis: MoveAxis.horizontal, length: 2, line: 2, lead: 1),
-        Vehicle(id: 2, axis: MoveAxis.vertical, length: 2, line: size - 1, lead: 2),
+        Vehicle(id: 0, length: 2, line: 0, lead: 0, facing: SlideDirection.left),
+        Vehicle(id: 1, length: 2, line: 2, lead: 1, facing: SlideDirection.left),
+        Vehicle(id: 2, length: 2, line: size - 1, lead: 2, facing: SlideDirection.down),
       ],
     );
   }
