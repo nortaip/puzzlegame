@@ -8,6 +8,7 @@ import '../../../game/models/vehicle.dart';
 import '../../../state/game_controller.dart';
 import 'board_painter.dart';
 import 'car_painter.dart';
+import 'trail_painter.dart';
 import 'vehicle_widget.dart';
 
 /// Renders the parking grid and turns taps/flicks into "drive forward" actions:
@@ -45,6 +46,11 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
   bool _policeActive = false;
   bool _policeBusy = false;
 
+  /// Fading tyre marks left behind by cars that have driven off.
+  final List<_Trail> _trails = [];
+  int _trailSeq = 0;
+  double _cell = 0;
+
   @override
   void dispose() {
     _bump.dispose();
@@ -70,6 +76,7 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
 
     final board = game.board;
     final cell = widget.size / board.size;
+    _cell = cell;
 
     return SizedBox(
       width: widget.size,
@@ -81,6 +88,7 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
             size: Size.square(widget.size),
             painter: BoardPainter(gridSize: board.size, theme: game.theme),
           ),
+          for (final t in _trails) _buildTrail(t),
           for (final car in board.cars) _buildCar(game, car, cell),
           if (_policeActive) _policeOverlay(cell),
         ],
@@ -153,6 +161,7 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
     if (_policeBusy || _exiting.contains(car.id)) return;
     final controller = ref.read(gameControllerProvider.notifier);
     if (controller.canDriveOff(car.id)) {
+      _addTrail(car);
       setState(() => _exiting.add(car.id));
     } else {
       _doBump(car);
@@ -189,8 +198,10 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
     for (final id in targets) {
       if (!mounted) break;
       final game = ref.read(gameControllerProvider);
-      if (game == null || game.board.carById(id) == null) continue;
+      final car = game?.board.carById(id);
+      if (car == null) continue;
 
+      _addTrail(car);
       setState(() => _exiting.add(id));
       await Future.delayed(const Duration(milliseconds: 360));
       if (!mounted) break;
@@ -236,6 +247,52 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
     );
   }
 
+  // ── Tyre marks ─────────────────────────────────────────────────────────────
+  void _addTrail(Vehicle car) {
+    final cell = _cell;
+    if (cell <= 0) return;
+    final width = (car.isHorizontal ? car.length : 1) * cell;
+    final height = (car.isHorizontal ? 1 : car.length) * cell;
+    final baseLeft = (car.isHorizontal ? car.lead : car.line) * cell;
+    final baseTop = (car.isHorizontal ? car.line : car.lead) * cell;
+
+    // The lane the car drives through: from its body to the exit border.
+    final Rect rect;
+    switch (car.facing) {
+      case SlideDirection.right:
+        rect = Rect.fromLTWH(baseLeft, baseTop, widget.size - baseLeft, height);
+      case SlideDirection.left:
+        rect = Rect.fromLTWH(0, baseTop, baseLeft + width, height);
+      case SlideDirection.down:
+        rect = Rect.fromLTWH(baseLeft, baseTop, width, widget.size - baseTop);
+      case SlideDirection.up:
+        rect = Rect.fromLTWH(baseLeft, 0, width, baseTop + height);
+    }
+
+    setState(() => _trails.add(_Trail(_trailSeq++, rect, car.facing)));
+  }
+
+  Widget _buildTrail(_Trail trail) {
+    return Positioned.fromRect(
+      key: ValueKey('trail_${trail.id}'),
+      rect: trail.rect,
+      child: IgnorePointer(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 1.0, end: 0.0),
+          duration: const Duration(milliseconds: 750),
+          onEnd: () => setState(() => _trails.removeWhere((t) => t.id == trail.id)),
+          builder: (context, opacity, _) => Opacity(
+            opacity: opacity.clamp(0.0, 1.0),
+            child: CustomPaint(
+              painter: TrailPainter(facing: trail.facing, color: Colors.black54),
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Offset _unit(SlideDirection d) {
     switch (d) {
       case SlideDirection.right:
@@ -248,4 +305,12 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
         return const Offset(0, -1);
     }
   }
+}
+
+/// A fading tyre mark left in a lane after a car drove off.
+class _Trail {
+  const _Trail(this.id, this.rect, this.facing);
+  final int id;
+  final Rect rect;
+  final SlideDirection facing;
 }
