@@ -1,0 +1,27 @@
+/// Game-wide tunable constants and economy values.
+class AppConstants {
+  AppConstants._();
+
+  static const String appName = 'Flow & Park Puzzle';
+
+  // ── Economy ───────────────────────────────────────────────────────────────
+  static const int baseLevelReward = 25;
+  static const int perStarBonus = 10;
+  static const int dailyChallengeReward = 100;
+  static const int rewardedAdCoins = 50;
+  static const int startingCoins = 100;
+
+  // ── Power-up costs (coins) ────────────────────────────────────────────────
+  static const int policeUnlockCost = 60;
+  static const int shuffleCost = 40;
+  static const int hintCost = 30;
+
+  // ── Animation timings ─────────────────────────────────────────────────────
+  static const Duration vehicleSlide = Duration(milliseconds: 180);
+  static const Duration screenTransition = Duration(milliseconds: 320);
+  static const Duration winCelebration = Duration(milliseconds: 2200);
+
+  // ── Star thresholds (multipliers over a level's optimal move count) ───────
+  static const double threeStarFactor = 1.15;
+  static const double twoStarFactor = 1.6;
+}
