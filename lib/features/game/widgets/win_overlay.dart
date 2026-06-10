@@ -4,6 +4,7 @@ import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/haptics.dart';
 import '../../../widgets/glass_panel.dart';
 
 /// Celebration shown when a level is solved: confetti burst, animated stars,
@@ -38,6 +39,22 @@ class _WinOverlayState extends State<WinOverlay>
     vsync: this,
     duration: AppConstants.screenTransition,
   )..forward();
+
+  /// How many star slots have popped in so far (revealed one by one).
+  int _revealed = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    for (var i = 0; i < 3; i++) {
+      Future.delayed(Duration(milliseconds: 420 + i * 320), () {
+        if (!mounted) return;
+        setState(() => _revealed = i + 1);
+        // A light tap as each earned star lands.
+        if (i < widget.stars) Haptics.selection();
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -82,18 +99,31 @@ class _WinOverlayState extends State<WinOverlay>
                   mainAxisSize: MainAxisSize.min,
                   children: List.generate(3, (i) {
                     final earned = i < widget.stars;
-                    return TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: earned ? 1 : 0.4),
-                      duration: Duration(milliseconds: 300 + i * 150),
-                      curve: Curves.elasticOut,
-                      builder: (_, v, __) => Transform.scale(
-                        scale: v,
-                        child: Icon(
-                          Icons.star_rounded,
-                          size: 56,
-                          color: earned
-                              ? const Color(0xFFFFD54F)
-                              : Colors.white24,
+                    final shown = i < _revealed;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: AnimatedScale(
+                        duration: const Duration(milliseconds: 380),
+                        curve: Curves.elasticOut,
+                        scale: shown ? (earned ? 1.0 : 0.82) : 0.0,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 200),
+                          opacity: shown ? 1.0 : 0.0,
+                          child: Icon(
+                            Icons.star_rounded,
+                            size: 56,
+                            color: earned
+                                ? const Color(0xFFFFD54F)
+                                : Colors.white24,
+                            shadows: earned
+                                ? [
+                                    const Shadow(
+                                      color: Color(0xAAFFD54F),
+                                      blurRadius: 16,
+                                    ),
+                                  ]
+                                : null,
+                          ),
                         ),
                       ),
                     );

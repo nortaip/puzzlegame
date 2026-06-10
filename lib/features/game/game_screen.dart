@@ -8,6 +8,7 @@ import '../../state/game_controller.dart';
 import '../../state/level_loader.dart';
 import '../../state/player_controller.dart';
 import '../../state/providers.dart';
+import '../../widgets/glass_panel.dart';
 import '../../widgets/gradient_background.dart';
 import '../shop/shop_screen.dart';
 import 'widgets/board_widget.dart';
@@ -229,34 +230,33 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     return showModalBottomSheet<_Payoff>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        margin: const EdgeInsets.all(16),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1B1830),
-          borderRadius: BorderRadius.circular(24),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Use power-up',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700)),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () => Navigator.pop(ctx, _Payoff.coins),
-              icon: const Icon(Icons.monetization_on),
-              label: Text('Pay $cost coins'),
-            ),
-            const SizedBox(height: 10),
-            FilledButton.tonalIcon(
-              onPressed: () => Navigator.pop(ctx, _Payoff.ad),
-              icon: const Icon(Icons.ondemand_video_rounded),
-              label: const Text('Watch ad'),
-            ),
-          ],
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        child: GlassPanel(
+          opacity: 0.18,
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Use power-up',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700)),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: () => Navigator.pop(ctx, _Payoff.coins),
+                icon: const Icon(Icons.monetization_on),
+                label: Text('Pay $cost coins'),
+              ),
+              const SizedBox(height: 10),
+              FilledButton.tonalIcon(
+                onPressed: () => Navigator.pop(ctx, _Payoff.ad),
+                icon: const Icon(Icons.ondemand_video_rounded),
+                label: const Text('Watch ad'),
+              ),
+            ],
+          ),
         ),
       ),
     );
