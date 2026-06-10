@@ -35,6 +35,10 @@ alter table public.analytics_events enable row level security;
 create policy "own user row" on public.users
   for all using (auth.uid() = id) with check (auth.uid() = id);
 
+-- Anyone may read the (non-sensitive) leaderboard columns of every user.
+create policy "leaderboard read" on public.users
+  for select using (true);
+
 create policy "own progress" on public.progress
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 

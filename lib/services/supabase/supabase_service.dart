@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config/app_config.dart';
@@ -11,6 +12,10 @@ class SupabaseService {
 
   bool _ready = false;
   bool get isReady => _ready && AppConfig.hasSupabase;
+
+  /// Set once auth proves unavailable (e.g. anonymous sign-ins are disabled) so
+  /// we stop retrying on every sync.
+  bool _authUnavailable = false;
 
   SupabaseClient get _client => Supabase.instance.client;
 
@@ -27,13 +32,24 @@ class SupabaseService {
   }
 
   /// Anonymous sign-in gives every device a stable user id for cloud save
-  /// without forcing the player through a login wall.
+  /// without forcing the player through a login wall. Returns null (and never
+  /// throws) when auth is unavailable — e.g. anonymous sign-ins are disabled in
+  /// the Supabase project — so the game keeps working fully offline.
   Future<String?> ensureSignedIn() async {
-    if (!isReady) return null;
+    if (!isReady || _authUnavailable) return null;
     final current = _client.auth.currentUser;
     if (current != null) return current.id;
-    final res = await _client.auth.signInAnonymously();
-    return res.user?.id;
+    try {
+      final res = await _client.auth.signInAnonymously();
+      return res.user?.id;
+    } on AuthException catch (e) {
+      _authUnavailable = true; // stop retrying (e.g. provider disabled)
+      if (kDebugMode) debugPrint('Supabase auth unavailable: ${e.message}');
+      return null;
+    } catch (e) {
+      if (kDebugMode) debugPrint('Supabase auth error: $e');
+      return null;
+    }
   }
 
   Future<void> upsertUser({
