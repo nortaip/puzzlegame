@@ -159,20 +159,20 @@ class GameController extends Notifier<GameState?> {
     _recordResult(s);
   }
 
-  /// Persists a per-level result (best moves / stars) to Isar for the level map
+  /// Persists a per-level result (best moves / stars) to the local store
   /// and cloud sync. Fire-and-forget; never blocks the win animation.
   Future<void> _recordResult(GameState s) async {
-    final isar = ref.read(isarServiceProvider);
-    final existing = await isar.progressFor(s.level.number);
+    final store = ref.read(localStoreProvider);
+    final existing = await store.progressFor(s.level.number);
     final score = max(0, 1000 - s.moveCount * 5) + s.stars * 100;
-    final progress = existing ?? (LevelProgress()..levelNumber = s.level.number);
+    final progress = existing ?? LevelProgress(levelNumber: s.level.number);
     if (progress.bestMoves == 0 || s.moveCount < progress.bestMoves) {
       progress.bestMoves = s.moveCount;
     }
     progress.stars = max(progress.stars, s.stars);
     progress.bestScore = max(progress.bestScore, score);
     progress.synced = false;
-    await isar.saveProgress(progress);
+    await store.saveProgress(progress);
   }
 
   // ── Power-ups ──────────────────────────────────────────────────────────────

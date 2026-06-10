@@ -4,15 +4,15 @@ import '../game/logic/level_generator.dart';
 import '../services/ads/ads_service.dart';
 import '../services/analytics/analytics_service.dart';
 import '../services/iap/iap_service.dart';
-import '../services/storage/isar_service.dart';
+import '../services/storage/local_store.dart';
 import '../services/supabase/supabase_service.dart';
 import '../services/supabase/sync_service.dart';
 import 'player_controller.dart';
 
 /// Service singletons are created in `main()` and injected via overrides so the
 /// rest of the app can depend on them synchronously.
-final isarServiceProvider = Provider<IsarService>(
-  (ref) => throw UnimplementedError('Override isarServiceProvider in main()'),
+final localStoreProvider = Provider<LocalStore>(
+  (ref) => throw UnimplementedError('Override localStoreProvider in main()'),
 );
 
 final adsServiceProvider = Provider<AdsService>(
@@ -23,7 +23,7 @@ final adsServiceProvider = Provider<AdsService>(
 /// can reach the live player economy without any container/closure cycles.
 /// `init()` is called once from `main()` after the container is built.
 final iapServiceProvider = Provider<IapService>(
-  (ref) => IapService(
+  (ref) => createIapService(
     onPurchase: (productId) =>
         _fulfilPurchase(ref.read(playerControllerProvider.notifier), productId),
   ),
@@ -51,7 +51,7 @@ final analyticsServiceProvider = Provider<AnalyticsService>(
 
 final syncServiceProvider = Provider<SyncService>(
   (ref) => SyncService(
-    ref.watch(isarServiceProvider),
+    ref.watch(localStoreProvider),
     ref.watch(supabaseServiceProvider),
   ),
 );

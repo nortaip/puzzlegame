@@ -6,8 +6,8 @@ import '../services/storage/models/player_profile.dart';
 import 'providers.dart';
 
 /// Holds the live [PlayerProfile] and mediates all economy mutations
-/// (coins, power-up charges, cosmetics, settings), persisting each change to
-/// Isar and triggering opportunistic cloud sync.
+/// (coins, power-up charges, cosmetics, settings), persisting each change to the
+/// local store and triggering opportunistic cloud sync.
 class PlayerController extends Notifier<PlayerProfile> {
   @override
   PlayerProfile build() {
@@ -16,21 +16,21 @@ class PlayerController extends Notifier<PlayerProfile> {
   }
 
   Future<void> init() async {
-    final isar = ref.read(isarServiceProvider);
-    state = await isar.loadProfile();
+    final store = ref.read(localStoreProvider);
+    state = await store.loadProfile();
     Haptics.enabled = state.hapticsEnabled;
     // Pull any newer cloud profile, then push local state up.
     final sync = ref.read(syncServiceProvider);
     await sync.pullIfNewer();
-    state = await isar.loadProfile();
+    state = await store.loadProfile();
   }
 
   Future<void> _persist() async {
-    await ref.read(isarServiceProvider).saveProfile(state);
+    await ref.read(localStoreProvider).saveProfile(state);
     // Fire-and-forget cloud push.
     unawaited(ref.read(syncServiceProvider).pushAll());
     // Re-read to reflect bumped revision/updatedAt.
-    state = await ref.read(isarServiceProvider).loadProfile();
+    state = await ref.read(localStoreProvider).loadProfile();
   }
 
   bool canAfford(int cost) => state.coins >= cost;

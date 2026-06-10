@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:vibration/vibration.dart';
 
 /// Thin wrapper over platform haptics with a graceful fallback. Honors a
-/// user-controllable [enabled] flag set from settings.
+/// user-controllable [enabled] flag set from settings. Safe on web and any
+/// platform without a vibrator (calls are guarded and never throw).
 class Haptics {
   Haptics._();
 
@@ -10,7 +12,16 @@ class Haptics {
   static bool? _hasVibrator;
 
   static Future<void> _ensure() async {
-    _hasVibrator ??= await Vibration.hasVibrator() ?? false;
+    if (_hasVibrator != null) return;
+    if (kIsWeb) {
+      _hasVibrator = false;
+      return;
+    }
+    try {
+      _hasVibrator = await Vibration.hasVibrator() ?? false;
+    } catch (_) {
+      _hasVibrator = false;
+    }
   }
 
   static Future<void> light() async {

@@ -1,21 +1,40 @@
-import 'package:isar/isar.dart';
-
-part 'level_progress.g.dart'; // run: dart run build_runner build
-
-/// Per-level result record. Keyed by [levelNumber] for fast lookup.
-@collection
+/// Per-level result record, keyed by [levelNumber]. Persisted as JSON via
+/// [LocalStore].
 class LevelProgress {
-  /// The level number doubles as the Isar id, so progress is keyed 1:1 by level.
-  Id get isarId => levelNumber;
+  LevelProgress({
+    required this.levelNumber,
+    this.bestMoves = 0,
+    this.stars = 0,
+    this.bestScore = 0,
+    DateTime? lastPlayed,
+    this.synced = false,
+  }) : lastPlayed = lastPlayed ?? DateTime.now();
 
-  late int levelNumber;
-
-  int bestMoves = 0;
-  int stars = 0; // 0..3
-  int bestScore = 0;
-
-  DateTime lastPlayed = DateTime.now();
+  int levelNumber;
+  int bestMoves;
+  int stars; // 0..3
+  int bestScore;
+  DateTime lastPlayed;
 
   /// Set once the result has been pushed to Supabase.
-  bool synced = false;
+  bool synced;
+
+  Map<String, dynamic> toJson() => {
+        'levelNumber': levelNumber,
+        'bestMoves': bestMoves,
+        'stars': stars,
+        'bestScore': bestScore,
+        'lastPlayed': lastPlayed.toIso8601String(),
+        'synced': synced,
+      };
+
+  factory LevelProgress.fromJson(Map<String, dynamic> json) => LevelProgress(
+        levelNumber: json['levelNumber'] as int,
+        bestMoves: json['bestMoves'] as int? ?? 0,
+        stars: json['stars'] as int? ?? 0,
+        bestScore: json['bestScore'] as int? ?? 0,
+        lastPlayed: DateTime.tryParse(json['lastPlayed'] as String? ?? '') ??
+            DateTime.now(),
+        synced: json['synced'] as bool? ?? false,
+      );
 }

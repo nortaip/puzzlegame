@@ -1,70 +1,31 @@
-import 'dart:async';
+// The concrete implementation is selected at compile time so the (mobile-only)
+// in_app_purchase plugin is never compiled into the web build.
+import 'iap_service_stub.dart'
+    if (dart.library.io) 'iap_service_mobile.dart';
 
-import 'package:flutter/foundation.dart';
-import 'package:in_app_purchase/in_app_purchase.dart';
-
-import '../../core/config/app_config.dart';
-
-/// Wraps `in_app_purchase` for the store's consumable coin packs and the
-/// non-consumable "remove ads" entitlement. Purchase fulfilment is delegated to
-/// [onPurchase] so the player economy stays in one place.
-class IapService {
-  IapService({required this.onPurchase});
-
-  /// Called with a verified product id when a purchase completes.
-  final Future<void> Function(String productId) onPurchase;
-
-  final InAppPurchase _iap = InAppPurchase.instance;
-  StreamSubscription<List<PurchaseDetails>>? _sub;
-
-  List<ProductDetails> products = const [];
-  bool available = false;
-
-  Future<void> init() async {
-    available = await _iap.isAvailable();
-    if (!available) return;
-
-    _sub = _iap.purchaseStream.listen(
-      _onPurchaseUpdate,
-      onError: (Object e) => debugPrint('IAP stream error: $e'),
-    );
-
-    final response = await _iap.queryProductDetails(AppConfig.iapProductIds);
-    products = response.productDetails;
-  }
-
-  ProductDetails? productById(String id) {
-    for (final p in products) {
-      if (p.id == id) return p;
-    }
-    return null;
-  }
-
-  Future<void> buy(ProductDetails product) async {
-    final param = PurchaseParam(productDetails: product);
-    final isConsumable = product.id != 'remove_ads';
-    if (isConsumable) {
-      await _iap.buyConsumable(purchaseParam: param);
-    } else {
-      await _iap.buyNonConsumable(purchaseParam: param);
-    }
-  }
-
-  Future<void> restore() => _iap.restorePurchases();
-
-  Future<void> _onPurchaseUpdate(List<PurchaseDetails> purchases) async {
-    for (final purchase in purchases) {
-      if (purchase.status == PurchaseStatus.purchased ||
-          purchase.status == PurchaseStatus.restored) {
-        // NOTE: For production, verify the receipt server-side (e.g. via a
-        // Supabase Edge Function) before granting entitlements.
-        await onPurchase(purchase.productID);
-      }
-      if (purchase.pendingCompletePurchase) {
-        await _iap.completePurchase(purchase);
-      }
-    }
-  }
-
-  void dispose() => _sub?.cancel();
+/// Platform-neutral store product so UI code never touches plugin types.
+class ShopProduct {
+  const ShopProduct({required this.id, required this.title, required this.price});
+  final String id;
+  final String title;
+  final String price;
 }
+
+/// In-app purchase abstraction for coin packs (consumables) and the "remove ads"
+/// entitlement (non-consumable).
+abstract class IapService {
+  Future<void> init();
+  bool get available;
+  List<ShopProduct> get products;
+  ShopProduct? productById(String id);
+  Future<void> buy(String productId);
+  Future<void> restore();
+  void dispose();
+}
+
+/// Creates the platform-appropriate IAP service. [onPurchase] is invoked with a
+/// product id once a purchase is verified, so fulfilment stays in one place.
+IapService createIapService({
+  required Future<void> Function(String productId) onPurchase,
+}) =>
+    createPlatformIapService(onPurchase: onPurchase);

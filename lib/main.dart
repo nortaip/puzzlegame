@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'services/ads/ads_service.dart';
-import 'services/storage/isar_service.dart';
+import 'services/storage/local_store.dart';
 import 'services/supabase/supabase_service.dart';
 import 'state/player_controller.dart';
 import 'state/providers.dart';
@@ -15,21 +15,21 @@ Future<void> main() async {
 
   // ── Bootstrap services that require async init. The game is fully playable
   //    offline, so cloud/ads failures are swallowed and never block startup.
-  final isar = await IsarService.open();
+  final store = await LocalStore.open();
 
   final supabase = SupabaseService.instance;
   try {
     await supabase.init();
   } catch (_) {/* offline-first: ignore */}
 
-  final ads = AdsService();
+  final ads = createAdsService();
   try {
     await ads.init();
   } catch (_) {}
 
   final root = ProviderContainer(
     overrides: [
-      isarServiceProvider.overrideWithValue(isar),
+      localStoreProvider.overrideWithValue(store),
       adsServiceProvider.overrideWithValue(ads),
     ],
   );

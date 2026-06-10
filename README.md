@@ -7,7 +7,7 @@ whole economy (coins, power-ups, cosmetics) works without a network connection.
 Supabase is used only for optional cloud save, analytics and leaderboards.
 
 > **Heads-up:** this repository contains the full Dart/Flutter source and tests.
-> The native platform folders (`android/`, `ios/`) are generated locally with
+> The platform folders (`android/`, `ios/`, `web/`) are generated locally with
 > `flutter create .` — see [Getting started](#getting-started).
 
 ---
@@ -19,7 +19,7 @@ Supabase is used only for optional cloud save, analytics and leaderboards.
   unsolvable or soft-locked board. Proven by `test/level_generator_test.dart`.
 - ⚡ **Instant restart & level transitions.** Levels are cached and the next one
   is prefetched off the critical path, so there are no loading delays.
-- 📦 **Offline-first.** Isar is the source of truth; Supabase sync is best-effort
+- 📦 **Offline-first.** A local JSON store (shared_preferences) is the source of truth; Supabase sync is best-effort
   and never blocks gameplay.
 - 🎨 **Premium feel.** Five environment themes, glassmorphism HUD, smooth
   easing, confetti win celebration, haptics.
@@ -41,7 +41,7 @@ lib/
 │   └── themes/               # Environment themes (City, Neon, Rainy, …)
 ├── liquid/                   # Optional liquid-sort mode (engine + models)
 ├── services/
-│   ├── storage/              # Isar DB + collections (offline source of truth)
+│   ├── storage/              # LocalStore (shared_preferences JSON) — offline truth
 │   ├── supabase/             # Cloud save, analytics, sync, leaderboard
 │   ├── ads/                  # AdMob rewarded ads
 │   ├── iap/                  # In-app purchases
@@ -51,7 +51,7 @@ lib/
 └── features/                 # Screens: splash, menu, level select, game, shop
 ```
 
-State management is **Riverpod**. The game logic in `game/models` and
+State management is **Riverpod** (hand-written providers, no codegen). The game logic in `game/models` and
 `game/logic` is pure Dart (no Flutter imports), which is what makes it unit
 testable and fast.
 
@@ -74,18 +74,22 @@ The liquid-sort generator uses the same principle: random balanced fill +
 ## Getting started
 
 ```bash
-# 1. Generate native platform folders (android/, ios/) for this package.
+# 1. Generate the platform folders this package runs on (android/, ios/, web/).
 flutter create .
 
 # 2. Fetch dependencies.
 flutter pub get
 
-# 3. Generate Isar + Riverpod code (creates the *.g.dart files).
-dart run build_runner build --delete-conflicting-outputs
-
-# 4. Run.
-flutter run
+# 3. Run — no code generation required.
+flutter run                 # mobile / desktop
+flutter run -d chrome       # web
 ```
+
+> Storage uses `shared_preferences` (JSON), so there are **no `*.g.dart` files
+> and no `build_runner` step**. The mobile-only plugins (AdMob, in-app
+> purchase) are isolated behind conditional imports, so the web build compiles
+> and runs — ads/IAP simply report "unavailable" there and power-ups fall back
+> to spending coins.
 
 ### Configuration (secrets via --dart-define)
 
@@ -131,7 +135,7 @@ flutter test
 ```
 
 - `test/level_generator_test.dart` — proves the always-solvable guarantee across
-  the difficulty curve, plus a 100-level stress sweep.
+  the difficulty curve, plus a 40-level stress sweep.
 - `test/board_test.dart` — board mechanics (occupancy, blocking, win, bounds).
 - `test/liquid_sort_test.dart` — liquid-sort generator solvability.
 

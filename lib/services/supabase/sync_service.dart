@@ -1,14 +1,14 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 
-import '../storage/isar_service.dart';
+import '../storage/local_store.dart';
 import 'supabase_service.dart';
 
-/// Bridges the offline Isar store with Supabase. Sync is best-effort and only
+/// Bridges the offline [LocalStore] with Supabase. Sync is best-effort and only
 /// runs when online; the game never blocks on it.
 class SyncService {
-  SyncService(this._isar, this._supabase);
+  SyncService(this._store, this._supabase);
 
-  final IsarService _isar;
+  final LocalStore _store;
   final SupabaseService _supabase;
 
   Future<bool> get _online async {
@@ -23,7 +23,7 @@ class SyncService {
     final userId = await _supabase.ensureSignedIn();
     if (userId == null) return;
 
-    final profile = await _isar.loadProfile();
+    final profile = await _store.loadProfile();
     profile.remoteUserId = userId;
     await _supabase.upsertUser(
       userId: userId,
@@ -31,7 +31,7 @@ class SyncService {
       level: profile.currentLevel,
     );
 
-    final pending = await _isar.unsyncedProgress();
+    final pending = await _store.unsyncedProgress();
     for (final p in pending) {
       await _supabase.upsertProgress(
         userId: userId,
@@ -39,9 +39,9 @@ class SyncService {
         score: p.bestScore,
       );
       p.synced = true;
-      await _isar.saveProgress(p);
+      await _store.saveProgress(p);
     }
-    await _isar.saveProfile(profile);
+    await _store.saveProfile(profile);
   }
 
   /// Pulls cloud profile when it is ahead of local (cross-device restore).
@@ -53,14 +53,14 @@ class SyncService {
     final remote = await _supabase.fetchUser(userId);
     if (remote == null) return;
 
-    final profile = await _isar.loadProfile();
+    final profile = await _store.loadProfile();
     final remoteLevel = (remote['level'] as int?) ?? 1;
     if (remoteLevel > profile.currentLevel) {
       profile
         ..currentLevel = remoteLevel
         ..coins = (remote['coins'] as int?) ?? profile.coins
         ..remoteUserId = userId;
-      await _isar.saveProfile(profile);
+      await _store.saveProfile(profile);
     }
   }
 }

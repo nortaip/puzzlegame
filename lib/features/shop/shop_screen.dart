@@ -194,10 +194,7 @@ class _CoinsTab extends ConsumerWidget {
             title: p.$2,
             subtitle: iap.productById(p.$1)?.price ?? '—',
             cost: -1, // real-money item
-            onBuy: () {
-              final product = iap.productById(p.$1);
-              if (product != null) iap.buy(product);
-            },
+            onBuy: () => iap.buy(p.$1),
           ),
         const SizedBox(height: 8),
         TextButton(

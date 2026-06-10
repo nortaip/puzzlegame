@@ -14,21 +14,18 @@ dependencies:
 
   # State management
   flutter_riverpod: ^2.5.1
-  riverpod_annotation: ^2.3.5
 
-  # Local storage (primary offline DB)
-  isar: ^3.1.0+1
-  isar_flutter_libs: ^3.1.0+1
-  path_provider: ^2.1.3
+  # Local storage (primary offline store — JSON via shared_preferences, no
+  # codegen, works on every platform incl. web)
   shared_preferences: ^2.2.3
 
   # Backend (cloud save / analytics / leaderboard)
   supabase_flutter: ^2.5.6
 
-  # Ads
+  # Ads (mobile only — isolated behind conditional imports so web still builds)
   google_mobile_ads: ^5.1.0
 
-  # In-app purchases
+  # In-app purchases (mobile only — likewise isolated for web)
   in_app_purchase: ^3.2.0
 
   # UX / polish
@@ -36,16 +33,11 @@ dependencies:
   confetti: ^0.7.0
   vibration: ^2.0.0
   connectivity_plus: ^6.0.3
-  uuid: ^4.4.0
-  collection: ^1.18.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-  build_runner: ^2.4.11
-  isar_generator: ^3.1.0+1
-  riverpod_generator: ^2.4.0
 
 flutter:
   uses-material-design: true
