@@ -13,10 +13,17 @@ class AppConfig {
   AppConfig._();
 
   // ── Supabase ─────────────────────────────────────────────────────────────
-  static const String supabaseUrl =
-      String.fromEnvironment('SUPABASE_URL', defaultValue: '');
-  static const String supabaseAnonKey =
-      String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: '');
+  // The project URL and *publishable* (anon) key are public by design — they
+  // ship inside every client and are protected by Row Level Security (see
+  // docs/supabase_schema.sql). `--dart-define` still overrides these defaults.
+  static const String supabaseUrl = String.fromEnvironment(
+    'SUPABASE_URL',
+    defaultValue: 'https://agmfcoxcurneiyzhnobb.supabase.co',
+  );
+  static const String supabaseAnonKey = String.fromEnvironment(
+    'SUPABASE_ANON_KEY',
+    defaultValue: 'sb_publishable_MWlMSLD3Uory2jMyTDxlHQ_sb6F2H1i',
+  );
 
   static bool get hasSupabase =>
       supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
