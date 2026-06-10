@@ -260,7 +260,8 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
             const Duration(milliseconds: 190), SoundService.instance.honk);
         _flashHorn();
       }
-      if (smoke) _addSmoke(car);
+      // A drift always kicks up tyre smoke.
+      if (smoke || drift) _addSmoke(car);
     }
 
     final ghost = _Ghost(
@@ -275,7 +276,7 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
     );
     ghost.controller = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: showoff ? 1700 : 540),
+      duration: Duration(milliseconds: showoff ? 1700 : (drift ? 760 : 520)),
     )..addStatusListener((status) {
         if (status == AnimationStatus.completed) {
           if (showoff) {
@@ -347,16 +348,32 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
       );
 
   Widget _normalGhostTransform(_Ghost g, double p) {
-    final off = g.travel * Curves.easeInCubic.transform(p);
-    // A smooth single power-slide: the rear kicks out, holds, then straightens
-    // as the car accelerates away — no spinning.
-    final slide = g.drift
-        ? sin(Curves.easeOut.transform(p) * pi) * 0.30 * g.driftSign
-        : 0.0;
+    if (!g.drift) {
+      return Transform.translate(
+        offset: g.travel * Curves.easeInCubic.transform(p),
+        child: _ghostCar(g),
+      );
+    }
+
+    // A real power-slide: the car accelerates along its lane while its tail
+    // steps out sideways (lateral slip) and the body sits at a big slip angle
+    // — pointing somewhere other than where it's travelling — then it hooks up
+    // and straightens as it shoots off. That mismatch reads as "drifting".
+    final facingU = _unit(g.car.facing);
+    final perp =
+        Offset(-facingU.dy, facingU.dx) * g.driftSign.toDouble();
+
+    final forward = facingU * (g.travel.distance * Curves.easeInCubic.transform(p));
+    final slide = perp * (g.cell * 1.05 * sin(p * pi)); // tail out, then back
+    final off = forward + slide;
+
+    // Big slip angle up front (~34°) that decays as the car hooks up.
+    final slip = g.driftSign * 0.6 * (1 - Curves.easeInQuad.transform(p));
+
     return Transform.translate(
       offset: off,
       child: Transform.rotate(
-        angle: slide,
+        angle: slip,
         alignment: g.frontAlignment,
         child: _ghostCar(g),
       ),
