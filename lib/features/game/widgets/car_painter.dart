@@ -9,10 +9,21 @@ import '../../../game/models/direction.dart';
 /// white arrow showing the direction it will drive. Designed to read clearly at
 /// small grid sizes.
 class CarPainter extends CustomPainter {
-  CarPainter({required this.color, required this.facing});
+  CarPainter({
+    required this.color,
+    required this.facing,
+    this.police = false,
+    this.sirenRedLeft = true,
+  });
 
   final Color color;
   final SlideDirection facing;
+
+  /// Renders a police livery (light bar instead of an arrow).
+  final bool police;
+
+  /// Which side of the siren is currently lit (animated by the caller).
+  final bool sirenRedLeft;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -141,10 +152,45 @@ class CarPainter extends CustomPainter {
       );
     }
 
-    // Direction arrow on the roof.
-    _drawArrow(canvas, l, s);
+    if (police) {
+      _drawSiren(canvas, l, s);
+    } else {
+      // Direction arrow on the roof.
+      _drawArrow(canvas, l, s);
+    }
 
     canvas.restore();
+  }
+
+  /// A roof light bar split into a red and a blue half; the lit side glows.
+  void _drawSiren(Canvas canvas, double l, double s) {
+    final barW = l * 0.30;
+    final barH = s * 0.34;
+    final left = Rect.fromCenter(
+        center: Offset(-barW * 0.25, 0), width: barW * 0.5, height: barH);
+    final right = Rect.fromCenter(
+        center: Offset(barW * 0.25, 0), width: barW * 0.5, height: barH);
+
+    final red = sirenRedLeft ? const Color(0xFFFF1744) : const Color(0xFFB71C1C);
+    final blue = sirenRedLeft ? const Color(0xFF1565C0) : const Color(0xFF2979FF);
+
+    void light(Rect r, Color c, bool lit) {
+      if (lit) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(r.inflate(2), const Radius.circular(3)),
+          Paint()
+            ..color = c.withOpacity(0.8)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+        );
+      }
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(r, const Radius.circular(2)),
+        Paint()..color = c,
+      );
+    }
+
+    light(left, red, sirenRedLeft);
+    light(right, blue, !sirenRedLeft);
   }
 
   void _drawArrow(Canvas canvas, double l, double s) {

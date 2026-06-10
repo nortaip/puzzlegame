@@ -5,7 +5,7 @@ an optional liquid-sort expansion mode. Every car has an **arrow**: tap it and i
 drives forward off the board if the lane ahead is clear — **clear the whole road**
 to win. Levels are **procedurally generated, get harder as you climb**, and are
 **provably solvable**; the UI is glassmorphic and animated at 60 FPS, and the
-whole economy (coins, power-ups, cosmetics) works without a network connection.
+whole economy (coins, power-ups) works without a network connection.
 Supabase is used only for optional cloud save, analytics and leaderboards.
 
 > **Heads-up:** this repository contains the full Dart/Flutter source and tests.
@@ -160,10 +160,13 @@ forward in its arrow direction; tap one whose lane is jammed and it lunges and
 bumps. A clean clear with no blocked taps earns three stars. Each car's arrow is
 fixed, so deeper levels (more cars, parked deeper) need longer un-jamming chains.
 
-**Power-ups:** 🚓 Police (remove a stuck car) · 🔄 Shuffle (re-randomise into a
-fresh, still-clearable layout) · 💡 Hint (highlights the most obvious car to send
-off). Each is free while you have charges, then payable with coins or a rewarded
-ad.
+**Power-ups:** 🚓 Police (a police car drives to the centre and escorts up to
+three stuck cars off, one by one) · 🔄 Shuffle (re-randomise into a fresh,
+still-clearable layout) · 💡 Hint (highlights the most obvious car to send off).
+Each is free while you have charges, then payable with coins or a rewarded ad.
+
+The shop is intentionally minimal — **only power-ups and coin packs** (no
+pay-to-win, no cosmetics).
 
 ---
 

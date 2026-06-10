@@ -26,6 +26,8 @@ class GameState {
     required this.mistakes,
     required this.theme,
     this.hintCarId,
+    this.policeToken = 0,
+    this.policeTargets = const [],
   });
 
   final GameStatus status;
@@ -46,6 +48,13 @@ class GameState {
   /// The currently highlighted hint car, if any.
   final int? hintCarId;
 
+  /// Bumped each time the Police power-up is used; the board widget watches this
+  /// to play the escort animation.
+  final int policeToken;
+
+  /// Car ids the police should escort off, in order.
+  final List<int> policeTargets;
+
   List<Vehicle> get cars => board.cars;
   int get carsLeft => board.cars.length;
   int get optimalMoves => level.optimalMoves;
@@ -63,6 +72,8 @@ class GameState {
     int? moveCount,
     int? mistakes,
     int? Function()? hintCarId,
+    int? policeToken,
+    List<int>? policeTargets,
   }) {
     return GameState(
       status: status ?? this.status,
@@ -73,6 +84,8 @@ class GameState {
       mistakes: mistakes ?? this.mistakes,
       theme: theme,
       hintCarId: hintCarId != null ? hintCarId() : this.hintCarId,
+      policeToken: policeToken ?? this.policeToken,
+      policeTargets: policeTargets ?? this.policeTargets,
     );
   }
 }
@@ -185,24 +198,39 @@ class GameController extends Notifier<GameState?> {
     ref.read(analyticsServiceProvider).powerUpUsed('hint');
   }
 
-  /// Police: instantly removes one car for free (always keeps the board
-  /// clearable, since removal only frees space). Prefers a jammed-in car.
+  /// Police: a police car drives to the centre and escorts a few stuck cars off
+  /// one by one. This only *requests* the escort (chooses the target cars and
+  /// bumps [GameState.policeToken]); the board widget plays the animation and
+  /// calls [exitCar] for each target. Removing cars only frees space, so the
+  /// board always stays clearable.
+  static const int _policeEscortCount = 3;
+
   bool usePolice() {
     final s = state;
     if (s == null || s.board.cars.isEmpty) return false;
-    final jammed = s.board.cars.where((c) => !s.board.canDriveOff(c)).toList();
-    final victim = jammed.isNotEmpty ? jammed.first : s.board.cars.first;
+    if (s.policeTargets.isNotEmpty) return false; // an escort is already running
 
-    final board = s.board.removeCar(victim.id);
-    final won = board.isCleared;
+    final jammed = s.board.cars.where((c) => !s.board.canDriveOff(c)).toList();
+    final pool = jammed.isNotEmpty ? jammed : s.board.cars;
+    final targets =
+        pool.take(_policeEscortCount).map((c) => c.id).toList(growable: false);
+    if (targets.isEmpty) return false;
+
     state = s.copyWith(
-      board: board,
-      status: won ? GameStatus.won : GameStatus.playing,
+      policeToken: s.policeToken + 1,
+      policeTargets: targets,
       hintCarId: () => null,
     );
     ref.read(analyticsServiceProvider).powerUpUsed('police');
-    if (won) _onWin();
     return true;
+  }
+
+  /// Clears the pending-escort list once the board widget has finished the
+  /// police animation.
+  void clearPoliceTargets() {
+    final s = state;
+    if (s == null) return;
+    state = s.copyWith(policeTargets: const []);
   }
 
   /// Shuffle: re-randomises the board into a fresh, still-clearable layout for

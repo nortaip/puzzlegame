@@ -9,9 +9,8 @@ import '../../widgets/coin_display.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/gradient_background.dart';
 
-/// Store for power-ups, themes, skins and coin packs. Cosmetic items are bought
-/// with earned coins; coin packs use real-money IAP. No pay-to-win items —
-/// only convenience boosts, per the design.
+/// Store with just two tabs: power-ups (bought with earned coins) and coin packs
+/// (real-money IAP). No pay-to-win, no cosmetics — only convenience boosts.
 class ShopScreen extends ConsumerWidget {
   const ShopScreen({super.key});
 
@@ -21,7 +20,7 @@ class ShopScreen extends ConsumerWidget {
     final theme = EnvironmentTheme.byIndex(profile.activeThemeIndex);
 
     return DefaultTabController(
-      length: 4,
+      length: 2,
       child: Scaffold(
         body: GradientBackground(
           colors: theme.backgroundGradient,
@@ -47,14 +46,11 @@ class ShopScreen extends ConsumerWidget {
                   ),
                 ),
                 const TabBar(
-                  isScrollable: true,
                   indicatorColor: Colors.white,
                   labelColor: Colors.white,
                   unselectedLabelColor: Colors.white60,
                   tabs: [
                     Tab(text: 'Power-ups'),
-                    Tab(text: 'Themes'),
-                    Tab(text: 'Skins'),
                     Tab(text: 'Coins'),
                   ],
                 ),
@@ -62,8 +58,6 @@ class ShopScreen extends ConsumerWidget {
                   child: TabBarView(
                     children: [
                       _PowerUpsTab(),
-                      _ThemesTab(),
-                      _SkinsTab(),
                       _CoinsTab(),
                     ],
                   ),
@@ -86,8 +80,8 @@ class _PowerUpsTab extends ConsumerWidget {
       children: [
         _StoreRow(
           icon: Icons.local_police_rounded,
-          title: 'Police Unlock ×3',
-          subtitle: 'Remove a blocking car',
+          title: 'Police ×3',
+          subtitle: 'Escort stuck cars off the board',
           cost: AppConstants.policeUnlockCost * 2,
           onBuy: () => _buy(ref, AppConstants.policeUnlockCost * 2,
               () => player.grantPolice(3)),
@@ -95,7 +89,7 @@ class _PowerUpsTab extends ConsumerWidget {
         _StoreRow(
           icon: Icons.shuffle_rounded,
           title: 'Shuffle ×3',
-          subtitle: 'Re-randomise non-essential cars',
+          subtitle: 'Re-randomise into a fresh, solvable jam',
           cost: AppConstants.shuffleCost * 2,
           onBuy: () => _buy(ref, AppConstants.shuffleCost * 2,
               () => player.grantShuffle(3)),
@@ -103,67 +97,11 @@ class _PowerUpsTab extends ConsumerWidget {
         _StoreRow(
           icon: Icons.lightbulb_rounded,
           title: 'Hints ×5',
-          subtitle: 'Reveal the best next move',
+          subtitle: 'Highlight the best car to send off',
           cost: AppConstants.hintCost * 3,
           onBuy: () =>
               _buy(ref, AppConstants.hintCost * 3, () => player.grantHint(5)),
         ),
-      ],
-    );
-  }
-}
-
-class _ThemesTab extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final profile = ref.watch(playerControllerProvider);
-    final player = ref.read(playerControllerProvider.notifier);
-    const themeCost = 800;
-    return GridView.count(
-      crossAxisCount: 2,
-      padding: const EdgeInsets.all(20),
-      mainAxisSpacing: 16,
-      crossAxisSpacing: 16,
-      childAspectRatio: 1.1,
-      children: [
-        for (final t in EnvironmentTheme.all)
-          _CosmeticTile(
-            label: t.name,
-            owned: profile.ownedThemes.contains(t.id),
-            active: profile.activeThemeIndex == t.id,
-            preview: t.backgroundGradient,
-            cost: themeCost,
-            onBuy: () => _buy(ref, themeCost, () => player.unlockTheme(t.id)),
-            onSelect: () => player.selectTheme(t.id),
-          ),
-      ],
-    );
-  }
-}
-
-class _SkinsTab extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final profile = ref.watch(playerControllerProvider);
-    final player = ref.read(playerControllerProvider.notifier);
-    final palette = EnvironmentTheme.byIndex(profile.activeThemeIndex).vehiclePalette;
-    const skinCost = 500;
-    return GridView.count(
-      crossAxisCount: 3,
-      padding: const EdgeInsets.all(20),
-      mainAxisSpacing: 16,
-      crossAxisSpacing: 16,
-      children: [
-        for (var i = 0; i < palette.length; i++)
-          _CosmeticTile(
-            label: 'Skin ${i + 1}',
-            owned: profile.ownedSkins.contains(i),
-            active: profile.activeSkinIndex == i,
-            preview: [palette[i], palette[i]],
-            cost: skinCost,
-            onBuy: () => _buy(ref, skinCost, () => player.unlockSkin(i)),
-            onSelect: () => player.selectSkin(i),
-          ),
       ],
     );
   }
@@ -264,90 +202,6 @@ class _StoreRow extends StatelessWidget {
                       ],
                     )
                   : const Text('Buy'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CosmeticTile extends StatelessWidget {
-  const _CosmeticTile({
-    required this.label,
-    required this.owned,
-    required this.active,
-    required this.preview,
-    required this.cost,
-    required this.onBuy,
-    required this.onSelect,
-  });
-
-  final String label;
-  final bool owned;
-  final bool active;
-  final List<Color> preview;
-  final int cost;
-  final VoidCallback onBuy;
-  final VoidCallback onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: owned ? onSelect : onBuy,
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: preview,
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: active ? Colors.white : Colors.white24,
-            width: active ? 3 : 1,
-          ),
-        ),
-        child: Stack(
-          children: [
-            Align(
-              alignment: Alignment.bottomLeft,
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Text(label,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        shadows: [Shadow(blurRadius: 4, color: Colors.black54)])),
-              ),
-            ),
-            Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: owned
-                    ? Icon(active ? Icons.check_circle : Icons.check,
-                        color: Colors.white)
-                    : Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.black38,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.monetization_on,
-                                size: 12, color: Color(0xFFFFD54F)),
-                            const SizedBox(width: 2),
-                            Text('$cost',
-                                style: const TextStyle(
-                                    color: Colors.white, fontSize: 11)),
-                          ],
-                        ),
-                      ),
-              ),
             ),
           ],
         ),

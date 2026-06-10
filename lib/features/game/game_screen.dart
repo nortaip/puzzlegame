@@ -158,7 +158,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         action: () {
           final ok =
               ref.read(gameControllerProvider.notifier).usePolice();
-          if (!ok) _toast('No car to remove');
+          if (!ok) _toast('No cars to escort');
           return ok;
         },
       );
