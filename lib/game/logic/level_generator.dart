@@ -68,7 +68,9 @@ class LevelGenerator {
     while (cars.length < cfg.vehicleCount && guard < guardLimit) {
       guard++;
       final horizontal = rng.nextBool();
-      final length = (cfg.allowTrucks && rng.nextInt(3) == 0) ? 3 : 2;
+      final type = cfg.typePool[rng.nextInt(cfg.typePool.length)];
+      final length = type.length;
+      if (length > size) continue; // too long for this board
       final line = rng.nextInt(size);
       final fromStart = rng.nextBool(); // entered from left/top vs right/bottom
       final lead = _pickLead(size, length, fromStart, cfg.depthBias, rng);
@@ -88,6 +90,7 @@ class LevelGenerator {
         line: line,
         lead: lead,
         facing: facing,
+        type: type,
         skinId: nextId,
       );
       _stampBody(occ, size, car);

@@ -148,12 +148,12 @@ flutter test
 
 ## Gameplay & progression
 
-| Levels   | Grid | Density / mechanics      |
-|----------|------|--------------------------|
-| 1–10     | 5×5  | basics                   |
-| 11–50    | 6×6  | trucks (length 3)        |
-| 51–120   | 7×7  | tighter packing          |
-| 121+     | 8×8  | densest jams             |
+| Levels   | Grid | Vehicles / mechanics                       |
+|----------|------|--------------------------------------------|
+| 1–8      | 5×5  | cars + minivans (length 2–3)               |
+| 9–40     | 6×6  | + buses (length 4)                         |
+| 41–100   | 7×7  | + trucks, deeper jams, tighter packing     |
+| 101+     | 8×8  | densest jams, most big vehicles            |
 
 **Goal:** clear the road — drive every car off the board. Tap a car to send it
 forward in its arrow direction; tap one whose lane is jammed and it lunges and

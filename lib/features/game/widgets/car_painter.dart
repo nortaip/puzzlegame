@@ -3,21 +3,24 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../../../game/models/direction.dart';
+import '../../../game/models/vehicle.dart';
 
-/// Paints a clean top-down toy car oriented toward [facing]: glossy body with a
-/// gradient, cabin + windshield glass, head/tail lights, four wheels, and a bold
-/// white arrow showing the direction it will drive. Designed to read clearly at
-/// small grid sizes.
+/// Paints a clean top-down vehicle oriented toward [facing]. The silhouette and
+/// detailing change with [type]: a sleek car, a boxier minivan, a long bus with
+/// a row of windows, or a truck (a cab pulling a pale cargo box). A bold white
+/// arrow shows the direction it will drive.
 class CarPainter extends CustomPainter {
   CarPainter({
     required this.color,
     required this.facing,
+    this.type = VehicleType.car,
     this.police = false,
     this.sirenRedLeft = true,
   });
 
   final Color color;
   final SlideDirection facing;
+  final VehicleType type;
 
   /// Renders a police livery (light bar instead of an arrow).
   final bool police;
@@ -25,13 +28,13 @@ class CarPainter extends CustomPainter {
   /// Which side of the siren is currently lit (animated by the caller).
   final bool sirenRedLeft;
 
+  static const Color _glassColor = Color(0xFF2A2E37);
+
   @override
   void paint(Canvas canvas, Size size) {
-    // Work in a local frame centred on the car, with +x pointing forward, then
-    // rotate so "forward" matches the facing direction.
     final isHorizontal = facing.axis == MoveAxis.horizontal;
-    final longSide = (isHorizontal ? size.width : size.height);
-    final shortSide = (isHorizontal ? size.height : size.width);
+    final longSide = isHorizontal ? size.width : size.height;
+    final shortSide = isHorizontal ? size.height : size.width;
 
     final double angle;
     switch (facing) {
@@ -49,7 +52,7 @@ class CarPainter extends CustomPainter {
     canvas.translate(size.width / 2, size.height / 2);
     canvas.rotate(angle);
 
-    final l = longSide - 6; // body length (with a little inset)
+    final l = longSide - 6; // body length
     final s = shortSide - 8; // body width
     final hl = l / 2;
     final hs = s / 2;
@@ -82,11 +85,43 @@ class CarPainter extends CustomPainter {
       ).createShader(bodyRect);
     canvas.drawRRect(bodyRRect, bodyPaint);
 
-    // Wheels (peeking out along both sides).
+    _drawWheels(canvas, l, s, hs);
+    canvas.drawRRect(bodyRRect, bodyPaint); // wheels tuck under the body
+
+    // Type-specific detailing.
+    if (police) {
+      _carGlass(canvas, l, s);
+    } else {
+      switch (type) {
+        case VehicleType.car:
+          _carGlass(canvas, l, s);
+        case VehicleType.minivan:
+          _minivanGlass(canvas, l, s);
+        case VehicleType.bus:
+          _busGlass(canvas, l, s);
+        case VehicleType.truck:
+          _truck(canvas, l, s, hl);
+      }
+    }
+
+    _drawLights(canvas, l, s, hl, hs);
+
+    if (police) {
+      _drawSiren(canvas, l, s);
+    } else {
+      _drawArrow(canvas, l, s);
+    }
+
+    canvas.restore();
+  }
+
+  void _drawWheels(Canvas canvas, double l, double s, double hs) {
     final wheelPaint = Paint()..color = const Color(0xFF222228);
-    final wheelW = l * 0.20;
+    final wheelW = l * 0.18;
     final wheelH = s * 0.16;
-    for (final sx in [-l * 0.26, l * 0.26]) {
+    final xs = <double>[-l * 0.30, l * 0.30];
+    if (l / s > 2.2) xs.add(-l * 0.02); // extra axle for long vehicles
+    for (final sx in xs) {
       for (final sy in [-hs, hs]) {
         canvas.drawRRect(
           RRect.fromRectAndRadius(
@@ -97,47 +132,92 @@ class CarPainter extends CustomPainter {
         );
       }
     }
-    // Redraw body so wheels sit "under" it.
-    canvas.drawRRect(bodyRRect, bodyPaint);
+  }
 
-    // Cabin / roof (slightly inset, darker shade of the body colour).
-    final cabinRect = Rect.fromCenter(
-      center: const Offset(-2, 0),
-      width: l * 0.52,
-      height: s * 0.78,
-    );
+  void _cabin(Canvas canvas, double l, double s, double widthFactor, double cx) {
     canvas.drawRRect(
-      RRect.fromRectAndRadius(cabinRect, Radius.circular(s * 0.22)),
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+            center: Offset(cx, 0), width: l * widthFactor, height: s * 0.80),
+        Radius.circular(s * 0.22),
+      ),
       Paint()..color = Color.lerp(color, Colors.black, 0.18)!,
     );
+  }
 
-    // Windshield (front glass) + rear window.
-    final glass = Paint()..color = const Color(0xFF2A2E37);
+  void _glassRect(Canvas canvas, double cx, double w, double h) {
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromCenter(
-            center: Offset(l * 0.18, 0), width: l * 0.16, height: s * 0.66),
-        Radius.circular(s * 0.16),
+        Rect.fromCenter(center: Offset(cx, 0), width: w, height: h),
+        Radius.circular(h * 0.22),
       ),
-      glass,
+      Paint()..color = _glassColor,
     );
+  }
+
+  void _carGlass(Canvas canvas, double l, double s) {
+    _cabin(canvas, l, s, 0.52, -2);
+    _glassRect(canvas, l * 0.18, l * 0.16, s * 0.66); // windshield
+    _glassRect(canvas, -l * 0.22, l * 0.13, s * 0.60); // rear window
+  }
+
+  void _minivanGlass(Canvas canvas, double l, double s) {
+    _cabin(canvas, l, s, 0.66, -2);
+    _glassRect(canvas, l * 0.26, l * 0.12, s * 0.64); // windshield
+    _glassRect(canvas, l * 0.02, l * 0.12, s * 0.60); // side window
+    _glassRect(canvas, -l * 0.24, l * 0.12, s * 0.60); // rear window
+  }
+
+  void _busGlass(Canvas canvas, double l, double s) {
+    // Lighter long roof panel.
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromCenter(
-            center: Offset(-l * 0.22, 0), width: l * 0.13, height: s * 0.6),
-        Radius.circular(s * 0.16),
+        Rect.fromCenter(center: Offset.zero, width: l * 0.88, height: s * 0.78),
+        Radius.circular(s * 0.24),
       ),
-      glass,
+      Paint()..color = Color.lerp(color, Colors.white, 0.14)!,
     );
+    // A row of windows.
+    const count = 5;
+    final winW = l * 0.10;
+    final span = l * 0.74;
+    final step = span / count;
+    final startX = -span / 2 + step / 2;
+    for (var i = 0; i < count; i++) {
+      _glassRect(canvas, startX + i * step, winW, s * 0.5);
+    }
+  }
 
-    // Headlights (front, bright) and tail lights (rear, red).
+  void _truck(Canvas canvas, double l, double s, double hl) {
+    // Pale cargo box covering the rear ~60%.
+    final cargoRect = Rect.fromCenter(
+      center: Offset(-l * 0.20, 0),
+      width: l * 0.58,
+      height: s * 0.94,
+    );
+    final cargoRRect =
+        RRect.fromRectAndRadius(cargoRect, Radius.circular(s * 0.16));
+    canvas.drawRRect(cargoRRect, Paint()..color = const Color(0xFFEDEDF2));
+    canvas.drawRRect(
+      cargoRRect,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..color = Colors.black.withOpacity(0.18),
+    );
+    // Cab at the front.
+    _cabin(canvas, l, s, 0.30, l * 0.30);
+    _glassRect(canvas, l * 0.40, l * 0.10, s * 0.66); // cab windshield
+  }
+
+  void _drawLights(Canvas canvas, double l, double s, double hl, double hs) {
     final head = Paint()..color = const Color(0xFFFFF3C4);
     final tail = Paint()..color = const Color(0xFFE53935);
     for (final sy in [-hs * 0.62, hs * 0.62]) {
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromCenter(
-              center: Offset(hl - l * 0.05, sy), width: l * 0.07, height: s * 0.2),
+              center: Offset(hl - l * 0.05, sy), width: l * 0.06, height: s * 0.2),
           Radius.circular(s * 0.08),
         ),
         head,
@@ -145,24 +225,36 @@ class CarPainter extends CustomPainter {
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromCenter(
-              center: Offset(-hl + l * 0.04, sy), width: l * 0.05, height: s * 0.18),
+              center: Offset(-hl + l * 0.04, sy), width: l * 0.045, height: s * 0.18),
           Radius.circular(s * 0.08),
         ),
         tail,
       );
     }
-
-    if (police) {
-      _drawSiren(canvas, l, s);
-    } else {
-      // Direction arrow on the roof.
-      _drawArrow(canvas, l, s);
-    }
-
-    canvas.restore();
   }
 
-  /// A roof light bar split into a red and a blue half; the lit side glows.
+  void _drawArrow(Canvas canvas, double l, double s) {
+    final paint = Paint()..color = Colors.white.withOpacity(0.92);
+    final a = s * 0.20; // arrow half-height
+    final tipX = a + s * 0.05;
+    final path = Path()
+      ..moveTo(tipX, 0)
+      ..lineTo(tipX - a, -a)
+      ..lineTo(tipX - a, -a * 0.45)
+      ..lineTo(tipX - a * 2.0, -a * 0.45)
+      ..lineTo(tipX - a * 2.0, a * 0.45)
+      ..lineTo(tipX - a, a * 0.45)
+      ..lineTo(tipX - a, a)
+      ..close();
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Colors.black.withOpacity(0.20)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5),
+    );
+    canvas.drawPath(path, paint);
+  }
+
   void _drawSiren(Canvas canvas, double l, double s) {
     final barW = l * 0.30;
     final barH = s * 0.34;
@@ -193,29 +285,11 @@ class CarPainter extends CustomPainter {
     light(right, blue, !sirenRedLeft);
   }
 
-  void _drawArrow(Canvas canvas, double l, double s) {
-    final paint = Paint()..color = Colors.white.withOpacity(0.92);
-    final a = s * 0.22; // arrow half-height
-    final tipX = l * 0.06 + a; // arrow head tip
-    final path = Path()
-      ..moveTo(tipX, 0)
-      ..lineTo(tipX - a, -a)
-      ..lineTo(tipX - a, -a * 0.45)
-      ..lineTo(tipX - a * 2.0, -a * 0.45)
-      ..lineTo(tipX - a * 2.0, a * 0.45)
-      ..lineTo(tipX - a, a * 0.45)
-      ..lineTo(tipX - a, a)
-      ..close();
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = Colors.black.withOpacity(0.18)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5),
-    );
-    canvas.drawPath(path, paint);
-  }
-
   @override
   bool shouldRepaint(covariant CarPainter old) =>
-      old.color != color || old.facing != facing;
+      old.color != color ||
+      old.facing != facing ||
+      old.type != type ||
+      old.police != police ||
+      old.sirenRedLeft != sirenRedLeft;
 }

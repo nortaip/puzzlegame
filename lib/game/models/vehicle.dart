@@ -1,13 +1,25 @@
 import 'direction.dart';
 
-/// A car parked on the grid. Each car has a single fixed [facing] direction
+/// The kinds of vehicle, each with the number of cells it occupies. Longer
+/// vehicles (minivan / bus / truck) make jams harder and appear at higher levels.
+enum VehicleType {
+  car(2),
+  minivan(3),
+  bus(4),
+  truck(4);
+
+  const VehicleType(this.length);
+  final int length;
+}
+
+/// A vehicle parked on the grid. Each one has a single fixed [facing] direction
 /// (shown as an arrow): tapping it drives it forward that way until it leaves
 /// the board. It never reverses or repositions, so its location
 /// ([line] + [lead]) is immutable.
 ///
 /// Coordinates:
-///   • horizontal car → occupies row [line], columns [lead] .. [lead]+[length]-1
-///   • vertical car   → occupies column [line], rows [lead] .. [lead]+[length]-1
+///   • horizontal → occupies row [line], columns [lead] .. [lead]+[length]-1
+///   • vertical   → occupies column [line], rows [lead] .. [lead]+[length]-1
 class Vehicle {
   const Vehicle({
     required this.id,
@@ -15,6 +27,7 @@ class Vehicle {
     required this.line,
     required this.lead,
     required this.facing,
+    this.type = VehicleType.car,
     this.skinId = 0,
   });
 
@@ -34,6 +47,9 @@ class Vehicle {
   /// The single direction this car can drive (its arrow).
   final SlideDirection facing;
 
+  /// Visual kind (car / minivan / bus / truck). Determines how it is drawn.
+  final VehicleType type;
+
   /// Index into the active palette (cosmetic only).
   final int skinId;
 
@@ -52,6 +68,7 @@ class Vehicle {
         line: line,
         lead: lead,
         facing: facing,
+        type: type,
         skinId: skinId ?? this.skinId,
       );
 

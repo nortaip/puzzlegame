@@ -57,7 +57,11 @@ class _VehicleWidgetState extends State<VehicleWidget>
     final car = Padding(
       padding: const EdgeInsets.all(2),
       child: CustomPaint(
-        painter: CarPainter(color: widget.color, facing: widget.vehicle.facing),
+        painter: CarPainter(
+          color: widget.color,
+          facing: widget.vehicle.facing,
+          type: widget.vehicle.type,
+        ),
         child: const SizedBox.expand(),
       ),
     );
