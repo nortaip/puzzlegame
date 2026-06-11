@@ -29,8 +29,18 @@ class AppConfig {
       supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
 
   // ── AdMob ────────────────────────────────────────────────────────────────
-  // Google's official test unit ids are used as defaults so the app is safe to
-  // run out of the box without serving live ads.
+  // Google's official test ids are used as defaults so the app is safe to run
+  // out of the box without serving live ads. Replace via --dart-define for
+  // production, and set the *app id* in AndroidManifest.xml / Info.plist.
+  static const String admobAppIdAndroid = String.fromEnvironment(
+    'ADMOB_APP_ID_ANDROID',
+    defaultValue: 'ca-app-pub-3940256099942544~3347511713',
+  );
+  static const String admobAppIdIos = String.fromEnvironment(
+    'ADMOB_APP_ID_IOS',
+    defaultValue: 'ca-app-pub-3940256099942544~1458002511',
+  );
+
   static const String _testRewardedAndroid =
       'ca-app-pub-3940256099942544/5224354917';
   static const String _testRewardedIos =
@@ -43,6 +53,15 @@ class AppConfig {
   static const String rewardedIos = String.fromEnvironment(
     'ADMOB_REWARDED_IOS',
     defaultValue: _testRewardedIos,
+  );
+
+  static const String interstitialAndroid = String.fromEnvironment(
+    'ADMOB_INTERSTITIAL_ANDROID',
+    defaultValue: 'ca-app-pub-3940256099942544/1033173712',
+  );
+  static const String interstitialIos = String.fromEnvironment(
+    'ADMOB_INTERSTITIAL_IOS',
+    defaultValue: 'ca-app-pub-3940256099942544/4411468910',
   );
 
   // ── In-App Purchase product ids ──────────────────────────────────────────

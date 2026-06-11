@@ -11,6 +11,13 @@ class AppConstants {
   static const int rewardedAdCoins = 50;
   static const int startingCoins = 100;
 
+  // ── Ads ─────────────────────────────────────────────────────────────────
+  /// Show a forced interstitial after every Nth completed level…
+  static const int interstitialEveryNLevels = 3;
+
+  /// …but never before this level (let new players settle in first).
+  static const int interstitialMinLevel = 4;
+
   // ── Hearts (mistake lives) ─────────────────────────────────────────────────
   static const int maxHearts = 3;
   static const Duration heartRefill = Duration(hours: 2);

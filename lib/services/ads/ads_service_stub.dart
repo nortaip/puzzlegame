@@ -15,5 +15,8 @@ class _NoopAdsService implements AdsService {
   Future<bool> showRewarded(AdPlacement placement) async => false;
 
   @override
+  Future<void> showInterstitial() async {}
+
+  @override
   void dispose() {}
 }

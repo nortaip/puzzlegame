@@ -15,8 +15,14 @@ class MobileAdsService implements AdsService {
   RewardedAd? _rewarded;
   bool _loading = false;
 
+  InterstitialAd? _interstitial;
+  bool _loadingInterstitial = false;
+
   String get _unitId =>
       Platform.isIOS ? AppConfig.rewardedIos : AppConfig.rewardedAndroid;
+  String get _interstitialUnitId => Platform.isIOS
+      ? AppConfig.interstitialIos
+      : AppConfig.interstitialAndroid;
 
   @override
   Future<void> init() async {
@@ -24,6 +30,48 @@ class MobileAdsService implements AdsService {
     await MobileAds.instance.initialize();
     _initialized = true;
     _preload();
+    _preloadInterstitial();
+  }
+
+  void _preloadInterstitial() {
+    if (_loadingInterstitial || _interstitial != null) return;
+    _loadingInterstitial = true;
+    InterstitialAd.load(
+      adUnitId: _interstitialUnitId,
+      request: const AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (ad) {
+          _interstitial = ad;
+          _loadingInterstitial = false;
+        },
+        onAdFailedToLoad: (err) {
+          if (kDebugMode) debugPrint('Interstitial load failed: $err');
+          _interstitial = null;
+          _loadingInterstitial = false;
+        },
+      ),
+    );
+  }
+
+  @override
+  Future<void> showInterstitial() async {
+    final ad = _interstitial;
+    if (ad == null) {
+      _preloadInterstitial();
+      return;
+    }
+    _interstitial = null;
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (ad) {
+        ad.dispose();
+        _preloadInterstitial();
+      },
+      onAdFailedToShowFullScreenContent: (ad, err) {
+        ad.dispose();
+        _preloadInterstitial();
+      },
+    );
+    await ad.show();
   }
 
   void _preload() {
@@ -78,5 +126,7 @@ class MobileAdsService implements AdsService {
   void dispose() {
     _rewarded?.dispose();
     _rewarded = null;
+    _interstitial?.dispose();
+    _interstitial = null;
   }
 }

@@ -113,6 +113,14 @@ flutter run \
   --dart-define=ADMOB_REWARDED_IOS=ca-app-pub-XXXX/ZZZZ
 ```
 
+### Monetization & iOS
+
+- **Ad placements & prices:** see [`docs/monetization.md`](docs/monetization.md)
+  — rewarded ads (out-of-hearts, power-ups), a forced interstitial every 3rd
+  level (from level 4, skipped with Remove Ads), and the IAP product price tiers.
+- **iOS App-Store prep:** see [`docs/ios_setup.md`](docs/ios_setup.md) —
+  Info.plist (AdMob/ATT/SKAdNetwork), IAP capability + products, signing, build.
+
 ### AdMob native setup
 
 After `flutter create .`, add your AdMob **app id** (not unit id):

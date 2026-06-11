@@ -150,10 +150,15 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   void _openShop(BuildContext context) => Navigator.of(context)
       .push(MaterialPageRoute(builder: (_) => const ShopScreen()));
 
-  void _goNext() {
-    final next = ref
-        .read(levelLoaderProvider)
-        .load(widget.level.number + 1);
+  Future<void> _goNext() async {
+    // Forced interstitial every few levels (skipped if "Remove Ads" bought).
+    final profile = ref.read(playerControllerProvider);
+    await ref.read(adGateProvider).onLevelCompleted(
+          adsRemoved: profile.adsRemoved,
+          level: widget.level.number,
+        );
+    if (!mounted) return;
+    final next = ref.read(levelLoaderProvider).load(widget.level.number + 1);
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => GameScreen(level: next)),
     );

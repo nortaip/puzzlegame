@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../game/logic/level_generator.dart';
+import '../services/ads/ad_gate.dart';
 import '../services/ads/ads_service.dart';
 import '../services/analytics/analytics_service.dart';
 import '../services/iap/iap_service.dart';
@@ -18,6 +19,10 @@ final localStoreProvider = Provider<LocalStore>(
 final adsServiceProvider = Provider<AdsService>(
   (ref) => throw UnimplementedError('Override adsServiceProvider in main()'),
 );
+
+/// Owns the "every Nth level" forced-interstitial cadence.
+final adGateProvider =
+    Provider<AdGate>((ref) => AdGate(ref.watch(adsServiceProvider)));
 
 /// The IAP service is constructed by the provider so its fulfilment callback
 /// can reach the live player economy without any container/closure cycles.

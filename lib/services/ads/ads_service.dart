@@ -13,7 +13,14 @@ enum AdPlacement { hint, coins, unlockSkill, extraUndo, hearts }
 abstract class AdsService {
   Future<void> init();
   bool get isReady;
+
+  /// Shows a rewarded ad; resolves true only if the reward was earned.
   Future<bool> showRewarded(AdPlacement placement);
+
+  /// Shows a forced interstitial (between levels). Resolves when dismissed or
+  /// immediately if none is ready. No-op on platforms without ads (web).
+  Future<void> showInterstitial();
+
   void dispose();
 }
 
