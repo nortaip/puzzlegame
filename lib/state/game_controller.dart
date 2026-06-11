@@ -14,7 +14,7 @@ import '../services/storage/models/level_progress.dart';
 import 'player_controller.dart';
 import 'providers.dart';
 
-enum GameStatus { loading, playing, won }
+enum GameStatus { loading, playing, won, lost }
 
 /// Immutable snapshot of an in-progress drive-off puzzle.
 class GameState {
@@ -156,12 +156,24 @@ class GameController extends Notifier<GameState?> {
     if (won) _onWin();
   }
 
-  /// Records a blocked drive attempt (a car pointed into a jammed lane).
+  /// Records a blocked drive attempt (a car pointed into a jammed lane). Costs a
+  /// heart; running out ends the run until the player refills.
   void registerMistake() {
     final s = state;
     if (s == null || s.status != GameStatus.playing) return;
     Haptics.error();
-    state = s.copyWith(mistakes: s.mistakes + 1);
+    final remaining = ref.read(playerControllerProvider.notifier).loseHeart();
+    state = s.copyWith(
+      mistakes: s.mistakes + 1,
+      status: remaining <= 0 ? GameStatus.lost : s.status,
+    );
+  }
+
+  /// Resumes play after the player refilled a heart (watched an ad / waited).
+  void resumeFromLost() {
+    final s = state;
+    if (s == null || s.status != GameStatus.lost) return;
+    state = s.copyWith(status: GameStatus.playing);
   }
 
   void _onWin() {

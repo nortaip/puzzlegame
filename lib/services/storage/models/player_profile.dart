@@ -11,6 +11,8 @@ class PlayerProfile {
     this.policeCharges = 1,
     this.shuffleCharges = 1,
     this.hintCharges = 3,
+    this.hearts = 3,
+    this.heartsRefillAt,
     this.adsRemoved = false,
     this.activeThemeIndex = 0,
     this.activeSkinIndex = 0,
@@ -46,6 +48,12 @@ class PlayerProfile {
   int shuffleCharges;
   int hintCharges;
 
+  /// Mistake lives. When 0, the player must wait for the timer or watch ads.
+  int hearts;
+
+  /// When the hearts will refill to full; null when already full.
+  DateTime? heartsRefillAt;
+
   bool adsRemoved;
 
   // Cosmetics.
@@ -73,6 +81,8 @@ class PlayerProfile {
         'policeCharges': policeCharges,
         'shuffleCharges': shuffleCharges,
         'hintCharges': hintCharges,
+        'hearts': hearts,
+        'heartsRefillAt': heartsRefillAt?.toIso8601String(),
         'adsRemoved': adsRemoved,
         'activeThemeIndex': activeThemeIndex,
         'activeSkinIndex': activeSkinIndex,
@@ -94,6 +104,8 @@ class PlayerProfile {
         policeCharges: json['policeCharges'] as int? ?? 1,
         shuffleCharges: json['shuffleCharges'] as int? ?? 1,
         hintCharges: json['hintCharges'] as int? ?? 3,
+        hearts: json['hearts'] as int? ?? 3,
+        heartsRefillAt: DateTime.tryParse(json['heartsRefillAt'] as String? ?? ''),
         adsRemoved: json['adsRemoved'] as bool? ?? false,
         activeThemeIndex: json['activeThemeIndex'] as int? ?? 0,
         activeSkinIndex: json['activeSkinIndex'] as int? ?? 0,

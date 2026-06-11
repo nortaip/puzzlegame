@@ -13,6 +13,8 @@ import '../../widgets/gradient_background.dart';
 import '../shop/shop_screen.dart';
 import 'widgets/board_widget.dart';
 import 'widgets/game_hud.dart';
+import 'widgets/hearts_display.dart';
+import 'widgets/out_of_hearts_overlay.dart';
 import 'widgets/powerup_bar.dart';
 import 'widgets/win_overlay.dart';
 
@@ -77,9 +79,12 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: GameCoins(onTap: () => _openShop(context)),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const HeartsDisplay(),
+                        GameCoins(onTap: () => _openShop(context)),
+                      ],
                     ),
                     const Spacer(),
                     LayoutBuilder(
@@ -129,6 +134,11 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                   onReplay: () =>
                       ref.read(gameControllerProvider.notifier).restart(),
                   onNext: _goNext,
+                ),
+              if (game.status == GameStatus.lost)
+                OutOfHeartsOverlay(
+                  onHome: () =>
+                      Navigator.of(context).popUntil((r) => r.isFirst),
                 ),
             ],
           ),

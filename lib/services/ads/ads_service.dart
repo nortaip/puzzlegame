@@ -5,7 +5,7 @@ import 'ads_service_stub.dart'
     if (dart.library.io) 'ads_service_mobile.dart';
 
 /// Placement identifiers for rewarded ads.
-enum AdPlacement { hint, coins, unlockSkill, extraUndo }
+enum AdPlacement { hint, coins, unlockSkill, extraUndo, hearts }
 
 /// Rewarded-ads abstraction (the only ad format used initially). Implementations
 /// must degrade gracefully — `showRewarded` returns false when no ad is

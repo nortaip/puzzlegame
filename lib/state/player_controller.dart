@@ -29,6 +29,7 @@ class PlayerController extends Notifier<PlayerProfile> {
     }
     Haptics.enabled = state.hapticsEnabled;
     SoundService.instance.enabled = state.soundEnabled;
+    await refreshHearts();
     // Pull any newer cloud profile, then push local state up.
     final sync = ref.read(syncServiceProvider);
     await sync.pullIfNewer();
@@ -41,6 +42,57 @@ class PlayerController extends Notifier<PlayerProfile> {
     unawaited(ref.read(syncServiceProvider).pushAll());
     // Re-read to reflect bumped revision/updatedAt.
     state = await ref.read(localStoreProvider).loadProfile();
+  }
+
+  // ── Hearts (mistake lives) ─────────────────────────────────────────────────
+  int get hearts => state.hearts;
+
+  /// Time left until hearts refill to full, or null when already full.
+  Duration? get heartRefillRemaining {
+    final at = state.heartsRefillAt;
+    if (at == null) return null;
+    final r = at.difference(DateTime.now());
+    return r.isNegative ? Duration.zero : r;
+  }
+
+  /// Refills to full if the timer has elapsed. Returns true if anything changed.
+  Future<bool> refreshHearts() async {
+    final at = state.heartsRefillAt;
+    if (at != null && !DateTime.now().isBefore(at)) {
+      state.hearts = AppConstants.maxHearts;
+      state.heartsRefillAt = null;
+      await _persist();
+      return true;
+    }
+    return false;
+  }
+
+  /// Spends one heart (a mistake). Returns the remaining count.
+  int loseHeart() {
+    _applyRegenInPlace();
+    if (state.hearts >= AppConstants.maxHearts) {
+      // First loss from full starts the refill countdown.
+      state.heartsRefillAt = DateTime.now().add(AppConstants.heartRefill);
+    }
+    state.hearts = (state.hearts - 1).clamp(0, AppConstants.maxHearts);
+    unawaited(_persist());
+    return state.hearts;
+  }
+
+  /// Grants one heart (e.g. after a rewarded ad), capped at the maximum.
+  Future<void> addHeart() async {
+    _applyRegenInPlace();
+    state.hearts = (state.hearts + 1).clamp(0, AppConstants.maxHearts);
+    if (state.hearts >= AppConstants.maxHearts) state.heartsRefillAt = null;
+    await _persist();
+  }
+
+  void _applyRegenInPlace() {
+    final at = state.heartsRefillAt;
+    if (at != null && !DateTime.now().isBefore(at)) {
+      state.hearts = AppConstants.maxHearts;
+      state.heartsRefillAt = null;
+    }
   }
 
   bool get hasUsername => state.username.trim().isNotEmpty;

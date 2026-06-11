@@ -11,6 +11,10 @@ class AppConstants {
   static const int rewardedAdCoins = 50;
   static const int startingCoins = 100;
 
+  // ── Hearts (mistake lives) ─────────────────────────────────────────────────
+  static const int maxHearts = 3;
+  static const Duration heartRefill = Duration(hours: 2);
+
   // ── Power-up costs (coins) ────────────────────────────────────────────────
   static const int policeUnlockCost = 60;
   static const int shuffleCost = 40;
