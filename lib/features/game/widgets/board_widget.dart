@@ -114,6 +114,7 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
           ),
           for (final t in _trails) _buildTrail(t),
           for (final s in _smokes) _buildSmoke(s),
+          if (_showoffGhost() != null) _donutSkid(_showoffGhost()!),
           // Drifting cars render *under* the parked cars and trees, so a slide
           // never draws on top of another vehicle.
           for (final g in _ghosts) _buildGhost(g),
@@ -248,8 +249,8 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
     // sometimes a plain clean getaway (never for the figure-8 showoff).
     final roll = _rng.nextDouble();
     // Only small (length-2) cars drift; bigger vehicles never do.
-    final drift = !showoff && roll < 0.4 && car.length == 2;
-    final smoke = !showoff && !drift && roll < 0.5;
+    final drift = !showoff && roll < 0.34 && car.length == 2;
+    final smoke = !showoff && !drift && roll >= 0.34 && roll < 0.62;
 
     if (showoff) {
       SoundService.instance.honk();
@@ -262,8 +263,7 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
             const Duration(milliseconds: 190), SoundService.instance.honk);
         _flashHorn();
       }
-      // A drift always kicks up tyre smoke.
-      if (smoke || drift) _addSmoke(car);
+      if (smoke) _addSmoke(car);
     }
 
     final ghost = _Ghost(
@@ -278,7 +278,7 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
     );
     ghost.controller = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: showoff ? 1700 : (drift ? 760 : 520)),
+      duration: Duration(milliseconds: showoff ? 2200 : 540),
     )..addStatusListener((status) {
         if (status == AnimationStatus.completed) {
           if (showoff) {
@@ -350,60 +350,40 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
       );
 
   Widget _normalGhostTransform(_Ghost g, double p) {
-    if (!g.drift) {
-      return Transform.translate(
-        offset: g.travel * Curves.easeInCubic.transform(p),
-        child: _ghostCar(g),
-      );
-    }
-
-    // A real power-slide: the car accelerates along its lane while its tail
-    // steps out sideways (lateral slip) and the body sits at a big slip angle
-    // — pointing somewhere other than where it's travelling — then it hooks up
-    // and straightens as it shoots off. That mismatch reads as "drifting".
-    final facingU = _unit(g.car.facing);
-    final perp =
-        Offset(-facingU.dy, facingU.dx) * g.driftSign.toDouble();
-
-    final forward = facingU * (g.travel.distance * Curves.easeInCubic.transform(p));
-    final slide = perp * (g.cell * 0.55 * sin(p * pi)); // tail out, then back
-    final off = forward + slide;
-
-    // Big slip angle up front (~34°) that decays as the car hooks up.
-    final slip = g.driftSign * 0.6 * (1 - Curves.easeInQuad.transform(p));
-
+    final off = g.travel * Curves.easeInCubic.transform(p);
+    // A smooth single power-slide: the tail kicks out and straightens as the
+    // car accelerates away — no spin, no sideways hopping.
+    final slide = g.drift
+        ? sin(Curves.easeOut.transform(p) * pi) * 0.30 * g.driftSign
+        : 0.0;
     return Transform.translate(
       offset: off,
       child: Transform.rotate(
-        angle: slip,
+        angle: slide,
         alignment: g.frontAlignment,
         child: _ghostCar(g),
       ),
     );
   }
 
-  /// Drives a lazy figure-8 (lemniscate of Gerono) around the board centre,
-  /// rotating to follow the path so the car looks like it's drifting an "8",
-  /// then fades out.
+  /// Spins a celebratory donut around the board centre — the car circles while
+  /// pointing tangent (with a slip angle), leaving circular skid marks, then
+  /// fades out.
   Widget _showoffTransform(_Ghost g, Rect rect, double p) {
     final centre = Offset(g.boardSize / 2, g.boardSize / 2);
-    final amp = g.boardSize * 0.26;
-    const loops = 1.5;
+    final radius = g.boardSize * 0.17;
+    final dir = g.driftSign.toDouble(); // clockwise / anti-clockwise
 
-    final drivePhase = p < 0.85 ? (p / 0.85) : 1.0;
-    final tt = drivePhase * 2 * pi * loops;
-    final dir = g.driftSign.toDouble(); // flips the 8's direction
+    final drive = p < 0.82 ? (p / 0.82) : 1.0;
+    final theta = -pi / 2 + dir * drive * 2 * pi * _donutLoops;
+    final pos = centre + Offset(cos(theta), sin(theta)) * radius;
 
-    final lx = amp * sin(tt) * dir;
-    final ly = amp * sin(tt) * cos(tt) * 1.7;
-    final pos = centre + Offset(lx, ly);
+    // Point the nose along the path (tangent), with a slip into the circle.
+    final tangent = theta + dir * pi / 2;
+    final slip = -dir * 0.42;
+    final angle = (tangent - _facingAngle(g.car.facing)) + slip;
 
-    // Tangent angle for rotation.
-    final dx = cos(tt) * dir;
-    final dy = (cos(tt) * cos(tt) - sin(tt) * sin(tt)) * 1.7;
-    final angle = atan2(dy, dx);
-
-    final opacity = p < 0.85 ? 1.0 : (1 - (p - 0.85) / 0.15).clamp(0.0, 1.0);
+    final opacity = p < 0.82 ? 1.0 : (1 - (p - 0.82) / 0.18).clamp(0.0, 1.0);
 
     return Transform.translate(
       offset: pos - rect.center,
@@ -412,6 +392,46 @@ class _BoardWidgetState extends ConsumerState<BoardWidget>
         child: Opacity(opacity: opacity, child: _ghostCar(g)),
       ),
     );
+  }
+
+  static const double _donutLoops = 1.75;
+
+  _Ghost? _showoffGhost() {
+    for (final g in _ghosts) {
+      if (g.showoff) return g;
+    }
+    return null;
+  }
+
+  Widget _donutSkid(_Ghost g) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: AnimatedBuilder(
+          animation: g.controller,
+          builder: (context, _) => CustomPaint(
+            painter: DonutSkidPainter(
+              progress: g.controller.value,
+              radius: widget.size * 0.17,
+              dir: g.driftSign.toDouble(),
+              loops: _donutLoops,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  double _facingAngle(SlideDirection d) {
+    switch (d) {
+      case SlideDirection.right:
+        return 0;
+      case SlideDirection.down:
+        return pi / 2;
+      case SlideDirection.left:
+        return pi;
+      case SlideDirection.up:
+        return -pi / 2;
+    }
   }
 
   // ── Police escort ──────────────────────────────────────────────────────────

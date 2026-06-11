@@ -452,6 +452,51 @@ class SmokePainter extends CustomPainter {
   bool shouldRepaint(covariant SmokePainter old) => old.progress != progress;
 }
 
+/// Circular tyre tracks left by a celebratory donut drift. Draws two concentric
+/// arcs that grow with [progress] and fade out at the end.
+class DonutSkidPainter extends CustomPainter {
+  DonutSkidPainter({
+    required this.progress,
+    required this.radius,
+    required this.dir,
+    this.loops = 1.75,
+  });
+
+  final double progress;
+  final double radius;
+  final double dir;
+  final double loops;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final centre = Offset(size.width / 2, size.height / 2);
+    final drive = progress < 0.82 ? progress / 0.82 : 1.0;
+    final sweep = dir * drive * 2 * pi * loops;
+    final fade =
+        progress < 0.82 ? 1.0 : (1 - (progress - 0.82) / 0.18).clamp(0.0, 1.0);
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.black.withOpacity(0.45 * fade);
+
+    for (final r in [radius - 5, radius + 5]) {
+      canvas.drawArc(
+        Rect.fromCircle(center: centre, radius: r),
+        -pi / 2,
+        sweep,
+        false,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant DonutSkidPainter old) =>
+      old.progress != progress;
+}
+
 /// A small top-down roadside tree (a bushy green canopy) used as an obstacle.
 class TreePainter extends CustomPainter {
   const TreePainter();
