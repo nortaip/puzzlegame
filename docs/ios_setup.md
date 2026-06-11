@@ -21,7 +21,7 @@ Add to `ios/Runner/Info.plist` (inside the top-level `<dict>`):
 ```xml
 <!-- AdMob application id (NOT a unit id) -->
 <key>GADApplicationIdentifier</key>
-<string>ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX</string>
+<string>ca-app-pub-9956181196959200~3801211454</string>
 
 <!-- App Tracking Transparency prompt (iOS 14.5+) -->
 <key>NSUserTrackingUsageDescription</key>
