@@ -157,8 +157,8 @@ flutter test
 | 1–8      | 5×5   | cars + minivans (length 2–3)              |
 | 9–40     | 6×6   | + buses (length 4)                        |
 | 41–100   | 7×7   | + trucks, deeper jams, tighter packing    |
-| 101–200  | 8×8   | densest jams, most big vehicles           |
-| 201+     | 9×9 … | grid grows by one every 100 levels (→14)  |
+| 101–130  | 8×8   | densest jams, most big vehicles           |
+| 131+     | 9×9 … | grid grows by one every 30 levels (→12)   |
 
 From level 12, **roadside trees** are scattered (mostly along the borders) as
 static obstacles that close off some exits. The generator places trees before
