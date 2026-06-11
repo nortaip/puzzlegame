@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../game/themes/environment_theme.dart';
 import '../../state/player_controller.dart';
+import '../../widgets/brand_logo.dart';
 import '../../widgets/gradient_background.dart';
 import '../login/login_screen.dart';
 import '../menu/main_menu_screen.dart';
@@ -59,40 +60,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         child: Center(
           child: ScaleTransition(
             scale: scale,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(28),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(32),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: const Icon(Icons.local_parking_rounded,
-                      size: 84, color: Colors.white),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Flow & Park',
-                  style: TextStyle(
-                    fontSize: 34,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const Text(
-                  'PUZZLE',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white70,
-                    letterSpacing: 8,
-                  ),
-                ),
-              ],
-            ),
+            child: const BrandLogo(height: 220),
           ),
         ),
       ),

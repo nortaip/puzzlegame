@@ -5,6 +5,7 @@ import '../../core/utils/haptics.dart';
 import '../../game/themes/environment_theme.dart';
 import '../../state/level_loader.dart';
 import '../../state/player_controller.dart';
+import '../../widgets/brand_logo.dart';
 import '../../widgets/coin_display.dart';
 import '../../widgets/glass_panel.dart';
 import '../../widgets/gradient_background.dart';
@@ -98,29 +99,7 @@ class MainMenuScreen extends ConsumerWidget {
                 const Spacer(flex: 3),
 
                 // ── Brand ────────────────────────────────────────────────
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(28),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: const Icon(Icons.local_parking_rounded,
-                      size: 72, color: Colors.white),
-                ),
-                const SizedBox(height: 16),
-                const Text('Flow & Park',
-                    style: TextStyle(
-                        fontSize: 38,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        height: 1.0)),
-                const Text('PUZZLE',
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white60,
-                        letterSpacing: 8)),
+                const BrandLogo(height: 180),
 
                 const Spacer(flex: 3),
 

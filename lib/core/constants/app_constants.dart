@@ -2,7 +2,8 @@
 class AppConstants {
   AppConstants._();
 
-  static const String appName = 'Flow & Park Puzzle';
+  static const String appName = 'Park Flow';
+  static const String tagline = 'UNBLOCK · SOLVE · ESCAPE';
 
   // ── Economy ───────────────────────────────────────────────────────────────
   static const int baseLevelReward = 25;
