@@ -6,11 +6,11 @@
 ## 0. One-time accounts
 - [ ] Apple Developer Program enrolled → https://developer.apple.com/programs/
 - [ ] App created in **App Store Connect** → https://appstoreconnect.apple.com
-      (My Apps → + → New App; bundle id `asif.nesrullazade.flowParkPuzzle`)
+      (My Apps → + → New App; bundle id `asif.dev.flowParkPuzzle`)
 
 ## 1. Generate & configure the project (on the Mac)
 ```bash
-flutter create --org asif.nesrullazade --project-name flow_park_puzzle .
+flutter create --org asif.dev --project-name flow_park_puzzle .
 flutter pub get
 cd ios && pod install && cd ..
 ```
@@ -26,7 +26,7 @@ cd ios && pod install && cd ..
 open ios/Runner.xcworkspace
 ```
 - [ ] Runner target → Signing & Capabilities → select your **Team**.
-- [ ] Bundle Identifier = `asif.nesrullazade.flowParkPuzzle`.
+- [ ] Bundle Identifier = `asif.dev.flowParkPuzzle`.
 - [ ] + Capability → **In-App Purchase**.
 
 ## 3. In-App Purchases (App Store Connect)
