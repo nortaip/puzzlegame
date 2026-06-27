@@ -1,7 +1,7 @@
 name: flow_park_puzzle
 description: "Flow & Park Puzzle — a hyper-casual car-parking unblock puzzle with an optional liquid-sort mode."
 publish_to: "none"
-version: 1.0.0+3
+version: 1.0.0+4
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
