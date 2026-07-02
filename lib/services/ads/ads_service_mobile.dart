@@ -38,7 +38,7 @@ class MobileAdsService implements AdsService {
     _loadingInterstitial = true;
     InterstitialAd.load(
       adUnitId: _interstitialUnitId,
-      request: const AdRequest(),
+      request: const AdRequest(nonPersonalizedAds: true),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
           _interstitial = ad;
@@ -79,7 +79,7 @@ class MobileAdsService implements AdsService {
     _loading = true;
     RewardedAd.load(
       adUnitId: _unitId,
-      request: const AdRequest(),
+      request: const AdRequest(nonPersonalizedAds: true),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
           _rewarded = ad;

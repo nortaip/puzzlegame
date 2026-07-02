@@ -159,7 +159,7 @@ class _CoinsTab extends ConsumerWidget {
             icon: p.icon,
             price: iap.productById(p.id)?.price ?? '—',
             badge: p.badge,
-            onBuy: () => iap.buy(p.id),
+            onBuy: () => _tryBuy(context, iap, p.id),
           ),
         const SizedBox(height: 8),
         _PowerCard(
@@ -170,7 +170,7 @@ class _CoinsTab extends ConsumerWidget {
           owned: 0,
           cost: -1,
           amount: iap.productById('remove_ads')?.price ?? '',
-          onBuy: () => iap.buy('remove_ads'),
+          onBuy: () => _tryBuy(context, iap, 'remove_ads'),
         ),
         const SizedBox(height: 8),
         Center(
@@ -183,6 +183,30 @@ class _CoinsTab extends ConsumerWidget {
       ],
     );
   }
+}
+
+Future<void> _tryBuy(BuildContext context, dynamic iap, String productId) async {
+  if (!iap.available) {
+    _showSnack(context, 'Store unavailable on this device.');
+    return;
+  }
+  if (iap.productById(productId) == null) {
+    _showSnack(context,
+        'This item is temporarily unavailable. Please try again shortly.');
+    return;
+  }
+  try {
+    await iap.buy(productId);
+  } catch (e) {
+    _showSnack(context, 'Purchase could not be started. Please try again.');
+  }
+}
+
+void _showSnack(BuildContext context, String msg) {
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context)
+    ..clearSnackBars()
+    ..showSnackBar(SnackBar(content: Text(msg)));
 }
 
 Future<void> _buy(
